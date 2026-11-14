@@ -35,7 +35,7 @@ export default function Landing() {
             <linearGradient id="rib" x1="0" x2="1">
               <stop offset="0" stopColor="#2dd4bf" /><stop offset="0.5" stopColor="#8b5cf6" /><stop offset="1" stopColor="#f472b6" />
             </linearGradient>
-            <filter id="glow"><feGaussianBlur stdDeviation="14" /></filter>
+            <filter id="glow" filterUnits="userSpaceOnUse" x="-200" y="-300" width="1900" height="1200"><feGaussianBlur stdDeviation="14" /></filter>
           </defs>
           {[{ w: 70, f: "url(#glow)", o: 0.55 }, { w: 26, f: undefined, o: 0.9 }].map((l, i) => (
             <motion.path key={i} d="M-40,120 C260,40 420,260 700,170 S1140,20 1480,140" fill="none" stroke="url(#rib)" strokeWidth={l.w} strokeLinecap="round"
@@ -56,7 +56,7 @@ export default function Landing() {
           <Globe grid={grid} mode="real" spin zoom={false}
             label="A slowly spinning globe of NASA data. Orange shows places where air temperature rose since 1980 and passed every test." />
         </motion.div>
-        <p className="absolute bottom-4 z-10 text-[12px] uppercase tracking-[0.16em] text-[var(--muted)]">Orange = proven warming since 1980 · scroll</p>
+        <p className="absolute bottom-5 z-10 rounded-full bg-[#070b1a]/70 px-4 py-2 text-[12px] uppercase tracking-[0.16em] text-[var(--soft)] backdrop-blur-md">Orange = proven warming since 1980 · scroll ↓</p>
       </section>
 
       {/* Mission: a light band whose words light up as you scroll */}
