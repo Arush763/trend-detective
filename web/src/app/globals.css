@@ -15,11 +15,13 @@
 
 @theme inline {
   --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-display: var(--font-grotesk), var(--font-inter), sans-serif;
+  --font-display: var(--font-outfit), var(--font-inter), sans-serif;
 }
 
+html { overflow-x: clip; }
 body {
   margin: 0;
+  overflow-x: clip; /* full-bleed landing sections use 100vw */
   color: var(--text);
   background: radial-gradient(900px 600px at 85% 4%, rgba(45, 212, 191, 0.09), transparent),
     radial-gradient(900px 700px at 0% 0%, rgba(99, 102, 241, 0.13), transparent),
@@ -60,5 +62,12 @@ body {
 .btn-primary:hover { background: #99f6e4; color: #04211d; }
 .btn-ghost { border: 1px solid rgba(195, 205, 230, 0.35); color: var(--text); }
 .btn-ghost:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+
+/* Full-width band inside the centred page column */
+.bleed { position: relative; width: 100vw; left: 50%; margin-left: -50vw; }
+
+@keyframes twinkle { 0%, 100% { opacity: 0.15; transform: scale(0.7); } 50% { opacity: 1; transform: scale(1); } }
+.twinkle { animation: twinkle 3.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .twinkle { animation: none; opacity: 0.6; } }
 
 .eyebrow { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
