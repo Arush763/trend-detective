@@ -1,7 +1,6 @@
 "use client";
-// Decorative pieces for the landing page: twinkling stars, scroll-lit text, warming stripes.
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { motion, useScroll, useTransform, type MotionValue } from "motion/react";
+// Decorative pieces: twinkling stars, aurora glows, warming stripes.
+import { useEffect, useState } from "react";
 import { get } from "@/lib/data";
 
 // Seeded random so server and client place the stars identically (no hydration mismatch).
@@ -23,36 +22,6 @@ export function Stars({ className = "" }: { className?: string }) {
   );
 }
 
-/** A paragraph whose words light up one by one as it scrolls through the screen. Wrap key words in **…**. */
-export function ScrollLit({ text, className = "" }: { text: string; className?: string }) {
-  const ref = useRef<HTMLParagraphElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start 0.85", "end 0.45"] });
-  const words = parseBold(text);
-  return (
-    <p ref={ref} className={className}>
-      {words.map((w, i) => (
-        <Word key={i} p={scrollYProgress} range={[i / words.length, (i + 1) / words.length]} bold={w.bold}>{w.text} </Word>
-      ))}
-    </p>
-  );
-}
-/** Split on spaces; a **bold run** can span several words. */
-function parseBold(text: string) {
-  const out: { text: string; bold: boolean }[] = [];
-  let inBold = false;
-  for (const w of text.split(" ")) {
-    const opens = w.startsWith("**"), closes = w.endsWith("**") && w.length > 2;
-    out.push({ text: w.replaceAll("**", ""), bold: inBold || opens });
-    inBold = (inBold || opens) && !closes;
-  }
-  return out;
-}
-
-function Word({ p, range, bold, children }: { p: MotionValue<number>; range: [number, number]; bold: boolean; children: ReactNode }) {
-  const opacity = useTransform(p, range, [0.18, 1]);
-  return <motion.span style={{ opacity }} className={bold ? "font-semibold" : undefined}>{children}</motion.span>;
-}
-
 /** Big soft glowing blobs behind a section. */
 export function Aurora({ className = "" }: { className?: string }) {
   return (
@@ -62,11 +31,6 @@ export function Aurora({ className = "" }: { className?: string }) {
       <div className="absolute -bottom-1/3 right-[-10%] h-[90%] w-[50%] rounded-full bg-[#f97316] opacity-45 blur-[120px]" />
     </div>
   );
-}
-
-/** A giant blurred word sitting behind a section, like a watermark. */
-export function GhostWord({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <span aria-hidden="true" className={`pointer-events-none absolute select-none font-display text-[clamp(80px,14vw,200px)] font-bold leading-none opacity-30 blur-[6px] ${className}`}>{children}</span>;
 }
 
 // Diverging blue → white → red, the classic "warming stripes" palette.
