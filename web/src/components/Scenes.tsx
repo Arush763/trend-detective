@@ -346,8 +346,11 @@ export function ChecksScene() {
   );
 }
 function ChecksStage({ p }: { p: MotionValue<number> }) {
+  // End on the site's dark colour so the light scene hands off smoothly to the dark footer.
+  const curtain = useTransform(p, [0.88, 1], ["circle(0% at 50% 100%)", "circle(150% at 50% 100%)"]);
   return (
     <>
+      <motion.div aria-hidden="true" style={{ clipPath: curtain }} className="absolute inset-0 z-30 bg-[var(--bg)]" />
       <span aria-hidden="true" className="pointer-events-none absolute bottom-[3vh] left-6 select-none font-display text-[clamp(90px,15vw,220px)] font-bold leading-none text-[#c4b5fd] opacity-40 blur-[6px]">Method</span>
       <div className="relative z-10 mx-auto flex h-full max-w-[1200px] flex-col justify-center gap-10 px-4 pt-16 sm:px-8 lg:flex-row lg:items-center">
         <div className="flex flex-col gap-5 lg:w-[40%]">
