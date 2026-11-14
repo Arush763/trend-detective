@@ -2,6 +2,8 @@
 
 NASA Space Apps 2026, challenge "Be An Earth System Trend Detective!"
 
+**Live app: https://trend-detective.vercel.app**
+
 Test 13,000 places for a trend and about 650 will look "significant" by pure luck.
 Trend Detective tests 46 years of NASA MERRA-2 data region by region and cell by cell,
 then shows which trends survive the checks that luck can't pass.
