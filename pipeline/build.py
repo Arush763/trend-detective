@@ -55,9 +55,9 @@ def load_enso():
         r = requests.get(ENSO_URL, timeout=60)
         r.raise_for_status()
         ENSO_CACHE.parent.mkdir(parents=True, exist_ok=True)
-        ENSO_CACHE.write_text(r.text)
+        ENSO_CACHE.write_text(r.text, encoding="utf-8")
     monthly = {}
-    for line in ENSO_CACHE.read_text().splitlines()[1:]:
+    for line in ENSO_CACHE.read_text(encoding="utf-8").splitlines()[1:]:
         parts = line.split()
         if len(parts) >= 5:
             monthly[(int(parts[0]), int(parts[1]))] = float(parts[-1])
@@ -305,14 +305,14 @@ def main():
             print(f"  Analyzing map for {var}...")
             g = build_grid(var, lat_c, lon_c, grid[var], enso)
             grid_summaries[var] = g["summary"]
-            (OUT_DIR / "grid" / f"{var}.json").write_text(json.dumps(g, separators=(",", ":")))
+            (OUT_DIR / "grid" / f"{var}.json").write_text(json.dumps(g, separators=(",", ":")), encoding="utf-8")
             reg_monthly[var] = reg[var]
         del grid
 
     print("Analyzing regions...")
     payload, sanity = region_payloads(reg_monthly, enso)
     for rid, d in payload.items():
-        (OUT_DIR / "regions" / f"{rid}.json").write_text(json.dumps(d, separators=(",", ":")))
+        (OUT_DIR / "regions" / f"{rid}.json").write_text(json.dumps(d, separators=(",", ":")), encoding="utf-8")
 
     meta = {
         "years": YEARS,
@@ -332,7 +332,7 @@ def main():
             "enso": "NOAA CPC detrended Niño 3.4 index",
         },
     }
-    (OUT_DIR / "meta.json").write_text(json.dumps(meta, separators=(",", ":"), ensure_ascii=False))
+    (OUT_DIR / "meta.json").write_text(json.dumps(meta, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
     print(f"\nDone in {time.time() - t0:.0f}s. Output: {OUT_DIR}")
     if sanity:
         print(f"Sanity check: global {sanity['global_T2M_decade']} °C/decade, "
