@@ -195,8 +195,9 @@ def build_grid(var, lat_c, lon_c, monthly, enso):
     return out
 
 
-def verdict(p):
-    if p < 0.05:
+def verdict(q, p):
+    """Significant only if it survives FDR across every test the app shows; 'possible' = a hint."""
+    if q < 0.05:
         return "significant"
     if p < 0.2:
         return "possible"
@@ -237,7 +238,6 @@ def region_payloads(reg_monthly, enso):
                 "p_naive": rnd(res["naive"]["p"][j], 3),
                 "p_hr": rnd(p_hr, 3),
                 "p_perm": rnd(stats.permutation_p(y), 3),
-                "verdict": verdict(p_hr),
                 "noise_level": rnd(res["sigma"][j]),
                 "autocorr": rnd(res["phi"][j], 3),
                 "snr": rnd(abs(total) / res["sigma"][j]) if res["sigma"][j] > 0 else None,
@@ -263,7 +263,9 @@ def region_payloads(reg_monthly, enso):
     # FDR across every region x variable test shown in the app
     q = stats.fdr_bh(np.array(all_p))
     for (rid, var), qv in zip(all_keys, q):
-        payload[rid]["variables"][var]["q"] = rnd(qv, 3)
+        d = payload[rid]["variables"][var]
+        d["q"] = rnd(qv, 3)
+        d["verdict"] = verdict(qv, d["p_hr"])
     for rid, pdata in payload.items():
         pdata["screener"] = sorted(
             pdata["variables"].keys(),
@@ -272,9 +274,16 @@ def region_payloads(reg_monthly, enso):
     a = payload["arctic"]["variables"].get("T2M", {})
     sanity = None
     if g and a:
+        # same period as the published study, so the comparison is fair
+        m = YEARS.index(2021) + 1
+        gm, am = (stats.sen_slope(np.array([x["annual"][:m]]))[0][0] * 10 for x in (g, a))
         sanity = {"global_T2M_decade": g["slope_decade"], "arctic_T2M_decade": a["slope_decade"],
                   "ratio": rnd(a["slope_decade"] / g["slope_decade"], 3) if g["slope_decade"] else None,
-                  "reference": "Rantanen et al. 2022 (observations, 1979-2021): Arctic 0.73 vs global 0.19 °C/decade, ratio about 3.8"}
+                  "matched": {"years": [YEARS[0], 2021], "global_T2M_decade": rnd(gm), "arctic_T2M_decade": rnd(am),
+                              "ratio": rnd(am / gm, 3) if gm else None},
+                  "reference": "Rantanen et al. 2022 (observations, 1979-2021): Arctic 0.73 vs global 0.19 °C/decade, ratio about 3.8",
+                  "note": "Reanalyses disagree on Arctic trends (roughly 0.3 to 0.7 °C/decade over 1980-2013), "
+                          "so a MERRA-2 ratio a little below the observed one is expected."}
     return payload, sanity
 
 
@@ -310,7 +319,8 @@ def main():
         "split_year": SPLIT_YEAR,
         "grid": grid_axes,
         "enso_annual": rlist(enso, 4),
-        "variables": {v: {k: VARIABLES[v][k] for k in ("name", "units", "definition", "collection")}
+        "variables": {v: {k: VARIABLES[v][k] for k in ("name", "units", "definition", "collection", "caveat")
+                          if k in VARIABLES[v]}
                       for v in reg_monthly},
         "regions": [{**{k: r[k] for k in ("id", "name", "type", "blurb")}, "box": list(r["box"]),
                      "suggested": [v for v in SUGGESTIONS[r["type"]] if v in reg_monthly]}

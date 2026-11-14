@@ -20,26 +20,56 @@ export default function Home() {
   const [region, setRegion] = useState<Region>(null);
   const [v, setV] = useState("T2M");
   const [enso, setEnso] = useState(false);
+  const [mode, setMode] = useState<Mode>("naive");
+  const [type, setType] = useState("");
+  const [story, setStory] = useState("");
+  const pendingVar = useRef("");
 
   useEffect(() => { get("meta.json").then(setMeta).catch((e) => setErr(String(e))); }, []);
   useEffect(() => {
     if (!regionId) return;
-    get(`regions/${regionId}.json`).then((r) => { setRegion(r); setV(r.screener[0]); }).catch((e) => setErr(String(e)));
+    get(`regions/${regionId}.json`).then((r) => {
+      setRegion(r);
+      setV(pendingVar.current || r.screener[0]);
+      pendingVar.current = "";
+    }).catch((e) => setErr(String(e)));
   }, [regionId]);
 
   if (err) return <p className="p-6 text-red-600">Could not load data ({err}). Run pipeline/build.py, then npm run data.</p>;
   if (!meta) return <p className="p-6">Loading…</p>;
   const info = region && region.id === regionId ? region : null;
+  const types: string[] = [...new Set<string>(meta.regions.map((r: any) => r.type))];
+  const pick = (id: string) => { setStory(""); setRegionId(id); };
+  const demo = (c: (typeof DEMOS)[number]) => {
+    if (c.region !== regionId) pendingVar.current = c.v; // the region load would otherwise reset v
+    setRegionId(c.region); setV(c.v); setMode(c.mode); setEnso(false); setStory(c.story);
+  };
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 p-4">
       <h1 className="text-2xl font-bold">Trend Detective: Signal or Noise?</h1>
+      <p className="text-sm">Test thousands of places for a trend and about 1 in 20 will look &quot;significant&quot; by pure luck. This tool shows which trends in NASA data are real.</p>
 
       <section>
-        <h2 className="font-semibold">1. Open a case: pick a region</h2>
+        <h2 className="font-semibold">Watch a demo case</h2>
         <div className="mt-2 flex flex-wrap gap-2">
-          {meta.regions.map((r: any) => (
-            <button key={r.id} onClick={() => setRegionId(r.id)}
+          {DEMOS.map((c) => <button key={c.title} onClick={() => demo(c)} className="rounded border px-2 py-1 text-sm">{c.title}</button>)}
+        </div>
+        {story && <p className="mt-2 rounded border border-yellow-500 p-2 text-sm">{story}</p>}
+      </section>
+
+      <section>
+        <h2 className="font-semibold">1. Open a case: what kind of place are you investigating?</h2>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {types.map((t) => (
+            <button key={t} onClick={() => setType(t === type ? "" : t)}
+              className={`rounded border px-2 py-1 text-sm ${t === type ? "bg-black text-white" : ""}`}>{t}</button>
+          ))}
+        </div>
+        <p className="mt-2 text-sm">Then pick a region{type && ` (${type})`}:</p>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {meta.regions.filter((r: any) => !type || r.type === type).map((r: any) => (
+            <button key={r.id} onClick={() => pick(r.id)}
               className={`rounded border px-2 py-1 text-sm ${r.id === regionId ? "bg-black text-white" : ""}`}>
               {r.name}
             </button>
@@ -75,13 +105,16 @@ export default function Home() {
         </>
       )}
 
-      <MapPanel meta={meta} v={v} enso={enso} box={info?.box} />
+      <MapPanel meta={meta} v={v} enso={enso} box={info?.box} mode={mode} setMode={setMode} />
 
       {meta.sanity && (
         <section className="text-sm">
-          <h2 className="font-semibold">Sanity check</h2>
-          Global warming {meta.sanity.global_T2M_decade} °C/decade, Arctic {meta.sanity.arctic_T2M_decade} °C/decade,
-          ratio {meta.sanity.ratio}. Reference: {meta.sanity.reference}.
+          <h2 className="font-semibold">Sanity check: does our pipeline reproduce known science?</h2>
+          MERRA-2 {meta.years[0]}–{meta.years.at(-1)}: global {meta.sanity.global_T2M_decade} °C/decade, Arctic {meta.sanity.arctic_T2M_decade} °C/decade,
+          ratio {meta.sanity.ratio}.
+          {meta.sanity.matched && <> Same years as the published study ({meta.sanity.matched.years.join("–")}): global {meta.sanity.matched.global_T2M_decade},
+            Arctic {meta.sanity.matched.arctic_T2M_decade}, ratio {meta.sanity.matched.ratio}.</>}
+          {" "}Reference: {meta.sanity.reference}. {meta.sanity.note}
         </section>
       )}
       <footer className="text-xs opacity-70">Data: {meta.sources.data}. ENSO: {meta.sources.enso}.</footer>
@@ -101,7 +134,8 @@ function CaseFile({ meta, info, v, enso, setEnso }: any) {
   return (
     <section className="space-y-2">
       <h2 className="font-semibold">3. Case file: {meta.variables[v].name} in {info.name}</h2>
-      <label className="text-sm"><input type="checkbox" checked={enso} onChange={(e) => setEnso(e.target.checked)} /> Remove El Niño</label>
+      {meta.variables[v].caveat && <p className="text-sm text-orange-700">Caution: {meta.variables[v].caveat}</p>}
+      <label className="text-sm"><input type="checkbox" checked={enso} onChange={(e) => setEnso(e.target.checked)} /> Remove El Niño (subtract the part of each year explained by the Pacific&apos;s El Niño / La Niña swings)</label>
       <Chart years={years} y={series} slope={slope} intercept={d.intercept} enso={enso} />
       <ul className="text-sm">
         <li>Trend (Sen&apos;s slope): <b>{fmt(slope * 10)} {u}/decade</b>{!enso && <> (95% CI {fmt(d.ci_decade[0])} to {fmt(d.ci_decade[1])})</>}</li>
@@ -109,7 +143,9 @@ function CaseFile({ meta, info, v, enso, setEnso }: any) {
         <li>Mann-Kendall p: naive {fmt(d.p_naive)}, autocorrelation-corrected {fmt(p)}, shuffle test {fmt(d.p_perm)}, FDR q {fmt(d.q)}</li>
         <li>Verdict: <b>{d.verdict}</b></li>
         {d.verdict !== "significant" && d.years_more != null && (
-          <li>Years until we&apos;d know: about {d.years_more} more years of data (~{fmt(d.years_needed)} total)</li>
+          <li>Years until we&apos;d know: {d.years_more > 0
+            ? <>about {d.years_more} more years of data (~{fmt(d.years_needed)} total)</>
+            : <>a steady trend this size should already show up, so the data likely moves in long swings rather than a straight line; more years alone may not settle it</>}</li>
         )}
         <li>El Niño effect: {fmt(d.enso_coef)} {u} per °C of Niño 3.4 (p {fmt(d.enso_p)})</li>
         <li>Walk-forward: <b>{wf.label}</b>. {wf.first.years.join("–")}: {fmt(wf.first.slope_decade)}/decade (p {fmt(wf.first.p)});
@@ -145,10 +181,35 @@ const MODES = {
   noise: "Noise test (shuffled data)",
   real: "Real signal (corrected + FDR)",
 } as const;
+type Mode = keyof typeof MODES;
 
-function MapPanel({ meta, v, enso, box }: any) {
-  const [mode, setMode] = useState<keyof typeof MODES>("naive");
+const EXPLAIN: Record<Mode, string> = {
+  naive: "Every grid cell tested on its own with a plain Mann-Kendall test. This is how many maps are made, but with ~13,000 tests some will pass by luck.",
+  noise: "We shuffled each cell's years into random order, which destroys any real trend. Cells that still look 'significant' are pure luck: about 5% of them.",
+  real: "Corrected for year-to-year memory in the data (Hamed-Rao) and for testing thousands of cells at once (Benjamini-Hochberg false discovery rate). What is left is very unlikely to be luck.",
+};
+
+// shortcut: hand-picked from the 2026-11-14 build; re-check the numbers in the story if build.py output changes.
+const DEMOS: { title: string; region: string; v: string; mode: Mode; story: string }[] = [
+  {
+    title: "Case 1: Is the Arctic really warming?", region: "arctic", v: "T2M", mode: "real",
+    story: "The Arctic warmed about 0.44 °C per decade (95% range 0.34 to 0.55), roughly 2 °C since 1980 and nearly 3 times the global rate. "
+      + "It passes every check: the autocorrelation correction, the false discovery rate (q < 0.0001), and removing El Niño barely changes it. "
+      + "On the map, switch between the three modes: thousands of warming cells survive the strictest test. This is a real signal.",
+  },
+  {
+    title: "Case 2: Beijing's haze, a trend that fools the naive test", region: "beijing", v: "TOTEXTTAU", mode: "noise",
+    story: "A naive test says Beijing's haze rose since 1980 (p = 0.002). But haze here climbed until the early 2010s and then fell, "
+      + "so each year looks a lot like the one before. Correct for that memory and for the 184 tests in this app and it is only 'possible' (q = 0.11). "
+      + "The walk-forward check shows what really happened: no clear trend 1980–2002, then a significant fall since 2003. "
+      + "The map is on the noise test: shuffled data with no trend at all still lights up about 5% of cells.",
+  },
+];
+
+function MapPanel({ meta, v, enso, box, mode, setMode }: { meta: Meta; v: string; enso: boolean; box?: number[]; mode: Mode; setMode: (m: Mode) => void }) {
   const [grid, setGrid] = useState<Grid>(null);
+  const [coast, setCoast] = useState("");
+  useEffect(() => { fetch("/coastline.txt").then((r) => r.text()).then(setCoast); }, []);
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => { get(`grid/${v}.json`).then(setGrid); }, [v]);
@@ -169,11 +230,7 @@ function MapPanel({ meta, v, enso, box }: any) {
       img.data.set([...rgb, 255], o);
     }
     ctx.putImageData(img, 0, 0);
-    if (box) { // region outline; box = [lat_min, lat_max, lon_min, lon_max]
-      ctx.strokeStyle = "black";
-      ctx.strokeRect((box[2] + 180) / 360 * nx, (90 - box[1]) / 180 * ny, (box[3] - box[2]) / 360 * nx, (box[1] - box[0]) / 180 * ny);
-    }
-  }, [grid, mode, enso, box, v]);
+  }, [grid, mode, enso, v]);
 
   const s = meta.grid_summary[v];
   const count = { naive: s.naive_sig, noise: s.noise_sig, real: enso ? s.enso_real_sig : s.real_sig }[mode];
@@ -185,9 +242,18 @@ function MapPanel({ meta, v, enso, box }: any) {
           <button key={m} onClick={() => setMode(m)} className={`rounded border px-2 py-1 text-sm ${m === mode ? "bg-black text-white" : ""}`}>{MODES[m]}</button>
         ))}
       </div>
+      <p className="text-sm">{EXPLAIN[mode]}</p>
       <p className="text-sm"><b>{count}</b> of {s.cells} cells look &quot;significant&quot;. Red = rising, blue = falling, grey = not significant, white = no data.</p>
-      <canvas ref={ref} width={meta.grid.lon.length} height={meta.grid.lat.length}
-        className="w-full border" style={{ imageRendering: "pixelated", aspectRatio: "2 / 1" }} />
+      <div className="relative border" style={{ aspectRatio: "2 / 1" }}>
+        <canvas ref={ref} width={meta.grid.lon.length} height={meta.grid.lat.length}
+          className="absolute inset-0 h-full w-full" style={{ imageRendering: "pixelated" }} />
+        {/* coastlines + region box drawn in lon/lat space: x = lon + 180, y = 90 - lat */}
+        <svg viewBox="0 0 360 180" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+          <path d={coast} fill="none" stroke="black" strokeWidth={0.4} />
+          {box && <rect x={box[2] + 180} y={90 - box[1]} width={box[3] - box[2]} height={box[1] - box[0]}
+            fill="none" stroke="#f0f" strokeWidth={1} />}
+        </svg>
+      </div>
     </section>
   );
 }

@@ -179,14 +179,15 @@ def permutation_p(y, n_perm=2000, seed=0):
     return float((np.sum(S_perm >= S_obs) + 1) / (n_perm + 1))
 
 
-WF_LABELS = ["no signal", "emerging", "confirmed", "continuing", "reversed"]
+WF_LABELS = ["no signal", "emerging", "confirmed", "continuing", "reversed", "faded"]
 
 
 def walk_forward(Y, split):
     """Find the trend in the first part (in-sample), then check the second part (out-of-sample).
     Codes: 0 no signal, 1 emerging (only recent), 2 confirmed (both halves significant, same
     direction), 3 continuing (first significant, second same direction but not significant),
-    4 reversed (first significant, second goes the other way)."""
+    4 reversed (both significant, opposite directions), 5 faded (first significant, second
+    not significant and pointing the other way: the trend stopped, it did not reverse)."""
     a = mann_kendall(Y[:, :split])
     b = mann_kendall(Y[:, split:])
     sa, sb = a["p"] < 0.05, b["p"] < 0.05
@@ -195,5 +196,6 @@ def walk_forward(Y, split):
     code[~sa & sb] = 1
     code[sa & sb & same] = 2
     code[sa & ~sb & same] = 3
-    code[sa & ~same] = 4
+    code[sa & sb & ~same] = 4
+    code[sa & ~sb & ~same] = 5
     return code, a, b

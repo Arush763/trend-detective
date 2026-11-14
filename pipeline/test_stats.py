@@ -41,10 +41,22 @@ print(f"false-positive rate on pure noise = {frac:.3f} (expect ~0.05)")
 # FDR: with pure noise, almost nothing should survive
 q = stats.fdr_bh(stats.mann_kendall(noise, correct_autocorr=False)["p"])
 print(f"survive FDR on pure noise = {np.mean(q < 0.05):.4f} (expect ~0)")
-print("All checks passed.")
 
 # Conservative mode (what the app uses) should give p-values >= the uncorrected-shrink version
 cons = stats.mann_kendall(Y, correct_autocorr=True)
 assert np.all(cons["p"] >= ours_hr["p"] - 1e-12)
 fp = np.mean(stats.fdr_bh(stats.mann_kendall(noise)["p"]) < 0.05)
 print(f"conservative H&R + FDR on pure noise = {fp:.4f} (expect ~0)")
+
+# Walk-forward: a trend that stops is "faded", only a significant opposite trend is "reversed"
+i = np.arange(23)
+wn = np.random.default_rng(7).normal(0, 1, (6, 23))   # noise so no half is a perfect line
+up = 0.5 * i
+wf, _, _ = stats.walk_forward(np.array([
+    np.r_[up + wn[0], up[-1] + up + wn[1]],          # keeps going -> confirmed (2)
+    np.r_[up + wn[2], up[-1] - up + wn[3]],          # turns around -> reversed (4)
+    np.r_[up + wn[4], up[-1] - 0.05 * i + wn[5]],    # goes flat -> faded (5)
+]), 23)
+assert list(wf) == [2, 4, 5], wf
+print("walk-forward codes ok")
+print("All checks passed.")

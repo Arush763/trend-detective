@@ -68,12 +68,14 @@ VARIABLES = {
         "name": "Haze / aerosols",
         "convert": lambda x: x, "units": "AOD (unitless)",
         "definition": "How much sunlight is blocked by tiny particles in the air like smoke, dust, and pollution. Higher = hazier.",
+        "caveat": "MERRA-2 aerosol trends can partly come from changes in which satellites were fed into the model over time (AVHRR, then MODIS and MISR), not only from the real air.",
         "collection": "M2TMNXAER",
     },
     "DUEXTTAU": {
         "name": "Dust in the air",
         "convert": lambda x: x, "units": "AOD (unitless)",
         "definition": "The part of the haze that comes from desert dust.",
+        "caveat": "MERRA-2 aerosol trends can partly come from changes in which satellites were fed into the model over time (AVHRR, then MODIS and MISR), not only from the real air.",
         "collection": "M2TMNXAER",
     },
 }
