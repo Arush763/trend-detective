@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { NICE, fmt, get, type Grid, type Meta } from "@/lib/data";
-import { COLORS, Globe, type Mode } from "@/components/Globe";
+import { Globe, GlobeScale, cellAt, type Mode, type Pick } from "@/components/Globe";
+import { CellInfo } from "@/components/CellInfo";
 
 const STEPS: { mode: Mode; step: string; noun: string; text: string; color: string }[] = [
   { mode: "naive", step: "Step 1 · The simple test", noun: "places look like they have a trend", color: "#c7d2fe",
@@ -19,13 +20,14 @@ export default function GlobePage() {
   const [grid, setGrid] = useState<Grid>(null);
   const [mode, setMode] = useState<Mode>("naive");
   const [enso, setEnso] = useState(false);
+  const [pick, setPick] = useState<Pick | null>(null);
 
   useEffect(() => { get("meta.json").then(setMeta); }, []);
   useEffect(() => { get(`grid/${v}.json`).then(setGrid); }, [v]);
   if (!meta) return <p className="text-[var(--muted)]">Loading NASA data…</p>;
   const s = meta.grid_summary[v];
   const count = (m: Mode) => ({ naive: s.naive_sig, noise: s.noise_sig, real: enso ? s.enso_real_sig : s.real_sig }[m]);
-  const landOnly = s.cells < 10000;
+  const g = grid?.var === v ? grid : null;
 
   return (
     <div className="flex flex-col gap-7">
@@ -42,19 +44,18 @@ export default function GlobePage() {
       <div className="flex flex-wrap items-start gap-8">
         <figure className="m-0 flex min-w-0 flex-[1_1_520px] flex-col items-center gap-3.5">
           <div className="w-full max-w-[640px]">
-            <Globe grid={grid?.var === v ? grid : null} mode={mode} enso={enso}
-              label={`Globe of ${NICE[v].short} trends: ${STEPS.find((x) => x.mode === mode)!.step}. ${count(mode)} of ${s.cells} places marked.`} />
+            <Globe grid={g} mode={mode} enso={enso} pick={pick}
+              onPick={(p) => g && setPick(cellAt(g, meta.grid.lat, meta.grid.lon, p))}
+              label={`Globe of ${NICE[v].short} trends: ${STEPS.find((x) => x.mode === mode)!.step}. ${count(mode)} of ${s.cells} places marked. Click a spot for its numbers.`} />
           </div>
-          <figcaption className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-[#a9b6d3]">
-            <span className="flex items-center gap-2"><span className="h-3.5 w-3.5 rounded" style={{ background: COLORS.up }} />Going up</span>
-            <span className="flex items-center gap-2"><span className="h-3.5 w-3.5 rounded" style={{ background: COLORS.down }} />Going down</span>
-            <span className="flex items-center gap-2"><span className="h-3.5 w-3.5 rounded border border-white/30" style={{ background: COLORS.flat }} />No trend found</span>
-            {landOnly && <span className="flex items-center gap-2"><span className="h-3.5 w-3.5 rounded border border-white/30" style={{ background: COLORS.none }} />No data (land only)</span>}
-            <span className="text-[var(--muted)]">Drag to spin · scroll to zoom</span>
+          <figcaption className="flex w-full flex-col items-center gap-2">
+            <GlobeScale grid={g} units={NICE[v].units} mode={mode} />
+            <span className="text-[13px] text-[var(--muted)]">Drag to spin · scroll to zoom · click a spot</span>
           </figcaption>
         </figure>
 
         <div className="flex min-w-0 flex-[1_1_360px] flex-col gap-3.5" role="group" aria-label="Which test to show">
+          <CellInfo meta={meta} grid={g} v={v} pick={pick} mode={mode} enso={enso} onClose={() => setPick(null)} />
           {STEPS.map((st) => {
             const on = st.mode === mode, c = count(st.mode);
             return (

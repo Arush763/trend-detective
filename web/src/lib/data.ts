@@ -17,7 +17,11 @@ export const get = (path: string): Promise<any> => {
 };
 
 export const fmt = (x: number | null | undefined, d = 2) =>
-  x == null || !Number.isFinite(x) ? "n/a" : Number(x.toPrecision(d)).toLocaleString();
+  x == null || !Number.isFinite(x) ? "n/a"
+    : x !== 0 && Math.abs(x) < 0.001 ? x.toExponential(d - 1).replace("e", "×10^") // tiny numbers would round to "0"
+      : Number(x.toPrecision(d)).toLocaleString();
+/** p- and q-values: below 0.001 the exact size doesn't matter to a reader. */
+export const pfmt = (p: number | null | undefined) => (p != null && p < 0.001 ? "< 0.001" : fmt(p));
 export const signed = (x: number, d = 2) => (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x), d);
 
 // Short, everyday names (the pipeline's names are fine for tables, these read better in sentences).
