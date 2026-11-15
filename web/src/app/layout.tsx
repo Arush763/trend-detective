@@ -38,7 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <PWA />
           <Nav />
           <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[1200px] px-4 pb-20 pt-24 outline-none sm:px-8">{children}</main>
-          <footer className="relative overflow-hidden border-t border-hairline text-ink">
+          <footer className="relative overflow-hidden border-t border-hairline bg-ground text-ink">
             <LightLeaks />
             <div className="relative mx-auto flex max-w-[1200px] flex-col gap-10 px-4 pb-10 pt-16 sm:px-8">
               <p className="font-display text-[clamp(48px,9vw,120px)] leading-[0.95] tracking-[-0.02em]">trend detective</p>
@@ -65,7 +65,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <div className="relative h-[200px]">
               <WarmingStripes className="absolute inset-0 blur-[14px] [mask-image:linear-gradient(to_bottom,transparent,black_55%)] [transform:scale(1.08)]" />
               <p className="hud absolute inset-x-4 bottom-3 mx-auto w-fit max-w-full rounded-full border border-hairline bg-ground-raised px-3 py-1.5 text-center text-ink">
-                Warming stripes · NASA global air temperature, 1980–2025 · blue cooler, red warmer
+                Warming stripes · NASA global air temperature, 1980–2025 · blue cooler, light warmer
               </p>
             </div>
           </footer>

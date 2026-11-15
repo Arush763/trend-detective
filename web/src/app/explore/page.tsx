@@ -13,7 +13,7 @@ import { ShareTools } from "@/components/ShareTools";
 const STEPS = ["Kind of place", "Place", "What to look at", "The data", "Check 1", "Check 2", "Check 3", "Check 4", "Verdict"];
 const DATA = 3, VERDICT_STEP = 8;
 const page = { initial: { opacity: 0, x: 24 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -24 }, transition: { duration: 0.3 } };
-/** Water variables: wetter = the cooling-blue family, drier = ochre. Everything else: rising = warming, falling = cooling. */
+/** Water variables: wetter = navy, drier = ash. Everything else: rising = warming, falling = cooling. */
 const trendTone = trendToneCss; // one source of truth, shared with /compare (see Globe.tsx)
 /** Question headers report whether they are on screen, so the floating status pill can show only once the header has scrolled away. */
 const HeaderSeen = createContext<(on: boolean) => void>(() => {});
