@@ -132,7 +132,7 @@ export default function Explore() {
     <div className="flex flex-col gap-7">
       {demo && (
         <div className="glass flex flex-wrap items-center justify-between gap-3 !rounded-2xl px-5 py-3.5">
-          <span className="text-[15px] text-[var(--ink-dim)]"><Hud className="mr-3 text-[var(--signal)]">DEMO CASE</Hud><span className="text-[var(--ink)]">{demo.title}</span></span>
+          <span className="text-[15px] text-[var(--ink-dim)]"><Hud className="mr-3 rounded-full bg-accent px-2 py-0.5 text-accent-ink">DEMO CASE</Hud><span className="text-[var(--ink)]">{demo.title}</span></span>
           {(() => { const nx = DEMOS[(DEMOS.indexOf(demo) + 1) % DEMOS.length]; return <button type="button" className="pill !rounded-2xl py-2 text-left" onClick={() => startDemo(nx)}>Next demo: {nx.title}</button>; })()}
         </div>
       )}
@@ -214,7 +214,7 @@ function NextCase({ demo, startDemo }: { demo?: (typeof DEMOS)[number]; startDem
   const nx = DEMOS[demo ? (DEMOS.indexOf(demo) + 1) % DEMOS.length : 0];
   return (
     <button type="button" onClick={(e) => { if (e.detail <= 1) startDemo(nx); }}
-      className="glass group relative flex w-full cursor-pointer flex-col items-start gap-3 !rounded-[28px] px-6 py-8 text-left transition-colors hover:border-[var(--signal)]/50 sm:px-10 sm:py-12">
+      className="glass group relative flex w-full cursor-pointer flex-col items-start gap-3 !rounded-[var(--radius-sm)] px-6 py-8 text-left transition-colors hover:border-[var(--signal)]/50 sm:px-10 sm:py-12">
       <Hud className="text-[var(--ink-dim)]">KEEP SCROLLING · NEXT CASE →</Hud>
       <span className="font-display text-[clamp(32px,5.5vw,72px)] leading-[0.95] tracking-[-0.03em] text-[var(--ink)] transition-transform duration-300 group-hover:translate-x-2 motion-reduce:transition-none">{nx.title}</span>
     </button>
@@ -264,7 +264,7 @@ function Question({ eyebrow, title, sub }: { eyebrow: string; title: string; sub
   );
 }
 
-const CHOICE = "glass relative flex cursor-pointer flex-col gap-1.5 !rounded-[20px] p-5 text-left text-[var(--ink)] transition-colors hover:border-[var(--signal)]/50 aria-pressed:border-[var(--signal)]/60";
+const CHOICE = "glass relative flex cursor-pointer flex-col gap-1.5 !rounded-[var(--radius-sm)] p-5 text-left text-[var(--ink)] transition-colors hover:border-[var(--signal)]/50 aria-pressed:border-[var(--signal)]/60";
 
 function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | null) => void }) {
   const [q, setQ] = useState("");
@@ -278,7 +278,7 @@ function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | nu
       : `We couldn't match that to a place in our data. Try a place like ${some}, and a word like warmer, wetter, snow or haze.`);
   };
   return (
-    <form className="glass mb-8 flex flex-col gap-3 !rounded-[20px] p-5" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
+    <form className="glass mb-8 flex flex-col gap-3 !rounded-[var(--radius-sm)] p-5" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
       <label htmlFor="ask"><SectionLabel>ASK A QUESTION</SectionLabel></label>
       <div className="flex flex-wrap gap-2">
         <input id="ask" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Is New Jersey getting wetter?" autoComplete="off"
@@ -286,7 +286,7 @@ function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | nu
         <Button type="submit">Investigate</Button>
       </div>
       <p className="text-[13px] text-[var(--ink-dim)]">Try:{" "}
-        {examples.map((x, i) => <span key={x}>{i > 0 && " · "}<button type="button" className="inline-flex min-h-11 items-center text-[var(--signal)] underline-offset-4 hover:underline" onClick={() => { setQ(x); submit(x); }}>{x}</button></span>)}
+        {examples.map((x, i) => <span key={x}>{i > 0 && " · "}<button type="button" className="inline-flex min-h-11 items-center text-ink underline decoration-[var(--accent)] underline-offset-4" onClick={() => { setQ(x); submit(x); }}>{x}</button></span>)}
       </p>
       <p role="status" className="text-[14px] text-[var(--ink-dim)]">{msg}</p>
     </form>
@@ -313,7 +313,7 @@ function KindStep({ meta, type, pick, startDemo, ask }: { meta: Meta; type: stri
         })}
       </div>
       <p className="mt-6 text-[15px] text-[var(--ink-dim)]">Not sure? Try a demo case:{" "}
-        {DEMOS.map((x, i) => <span key={x.id}>{i > 0 && " · "}<button type="button" onClick={() => startDemo(x)} className="inline-flex min-h-11 cursor-pointer items-center text-[var(--signal)] underline-offset-4 hover:underline">{x.title}</button></span>)}
+        {DEMOS.map((x, i) => <span key={x.id}>{i > 0 && " · "}<button type="button" onClick={() => startDemo(x)} className="inline-flex min-h-11 cursor-pointer items-center text-ink underline decoration-[var(--accent)] underline-offset-4">{x.title}</button></span>)}
         {" · "}<Link href="/compare" className="inline-flex min-h-11 items-center">Same cause, opposite effects: Amazon vs Himalaya</Link>
       </p>
     </section>
@@ -354,7 +354,7 @@ function WhatStep({ meta, info, v, pick, note }: { meta: Meta; info: Region; v: 
           <button key={k} type="button" onClick={() => pick(k)} aria-pressed={k === v} className={CHOICE}>
             {k === v && <Brackets layoutId="what-pick" />}
             <Hud className="text-[var(--ink-dim)]">{k} · {NICE[k].units}</Hud>
-            <span className="text-lg text-[var(--ink)]">{NICE[k].short}{suggested.includes(k) && <span className="text-[var(--signal)]"><span aria-hidden="true"> ★</span> suggested</span>}</span>
+            <span className="text-lg text-[var(--ink)]">{NICE[k].short}{suggested.includes(k) && <span className="ml-2 rounded-full bg-accent px-2 py-0.5 align-middle font-mono text-[10px] uppercase text-accent-ink">Suggested</span>}</span>
             <span className="text-[15px] leading-normal text-[var(--ink-dim)]">{meta.variables[k].definition}</span>
           </button>
         ))}

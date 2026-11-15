@@ -7,7 +7,7 @@ import { animate, motion, useMotionValue, useMotionValueEvent, useScroll, useTra
 import Lenis from "lenis";
 import { DEMOS, NICE, signed, type Grid, type Meta, type Region } from "@/lib/data";
 import { Globe, coast } from "./Globe";
-import { Badge, Button, HudCallout, RegMarks, SectionLabel, Sparkline, VerdictStamp, useReducedMotion } from "./ui";
+import { Badge, Button, HudCallout, RegMarks, SectionLabel, Sparkline, VerdictStamp, WaveTitle, useReducedMotion } from "./ui";
 import { Dust, LightLeaks } from "./Fancy";
 
 /** Smooth, inertial scrolling for the page this is mounted on (off for reduced motion). */
@@ -333,7 +333,7 @@ function NoiseStage({ p, meta, grid }: { p: MotionValue<number>; meta: Meta; gri
             <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-cooling" />cooling</span>
             <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-false-alarm" />false alarm (shuffled data)</span>
             <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-[#282e3c] ring-1 ring-white/20" />no trend found</span>
-            <Link href="/globe" className="hud text-signal sm:ml-auto">Explore it on the globe →</Link>
+            <Link href="/globe" className="hud ulink text-ink sm:ml-auto">Explore it on the globe →</Link>
           </figcaption>
         </figure>
       </div>
@@ -350,7 +350,10 @@ export function CasesScene({ cases }: { cases: Record<string, Region> }) {
   );
 }
 const CASE_TONE = { arctic: "real", beijing: "alarm", murray: "maybe" } as const;
-const CARD = "group glass flex h-[min(calc(70svh-4rem),560px)] w-[min(82vw,520px)] shrink-0 flex-col gap-4 rounded-[28px] p-6 text-ink no-underline transition-colors hover:border-white/35 sm:gap-5 sm:p-8";
+const CARD = "group glass flex h-[min(calc(70svh-4rem),560px)] w-[min(82vw,520px)] shrink-0 flex-col gap-4 p-6 text-ink no-underline transition-colors duration-200 hover:border-ink-faint sm:gap-5 sm:p-8";
+// CaseCard media: rounded 15px, scales 1.04 over 800ms on hover.
+const MEDIA = "flex min-h-0 flex-1 flex-col justify-center gap-1 overflow-hidden rounded-[var(--radius-md)] bg-ground-sunken p-4";
+const ZOOM = "flex flex-col gap-1 transition-transform duration-[800ms] ease-lusion group-hover:scale-[1.04] group-focus-visible:scale-[1.04]";
 
 function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string, Region> }) {
   const track = useRef<HTMLDivElement>(null);
@@ -381,24 +384,25 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
           const rising = (d?.slope_decade ?? 0) > 0;
           const trendCol = water ? (rising ? "var(--cooling)" : "#c48a3f") : (rising ? "var(--warming)" : "var(--cooling)");
           const sig = c.tone === "real";
+          const lineCol = sig ? trendCol : "var(--no-trend)"; // not proven: dashed grey
           return (
             <Link key={c.id} href={`/explore?place=${c.place}&v=${c.v}&case=${c.id}`} className={CARD}>
               <div className="hud flex items-center justify-between gap-3 border-b border-glass-stroke pb-3">
                 <span className="truncate">Case_0{i + 1} · {c.place.replace("-", " ")} · {nice?.short ?? c.v}</span>
               </div>
-              <h3 className="font-display text-[clamp(26px,2.8vw,38px)] leading-tight">{c.title}</h3>
+              <WaveTitle text={c.title} className="font-display text-[26px] leading-[30px]" />
               <div><Badge tone={CASE_TONE[c.id as keyof typeof CASE_TONE] ?? c.tone}>{c.tag}</Badge></div>
-              <div className="flex min-h-0 flex-1 flex-col justify-center gap-1">
-                {d && <>
-                  <Sparkline y={d.annual} className="h-28 w-full" color={trendCol} dashed={!sig} trend={[d.intercept, d.intercept + (d.slope_decade / 10) * (d.annual.length - 1)]} label={`${c.title}: yearly values 1980 to 2025, with the straight-line trend${sig ? "" : " (not proven)"}`} />
+              <div className={MEDIA}>
+                {d && <div className={ZOOM}>
+                  <Sparkline y={d.annual} className="h-28 w-full" color={lineCol} dashed={!sig} trend={[d.intercept, d.intercept + (d.slope_decade / 10) * (d.annual.length - 1)]} label={`${c.title}: yearly values 1980 to 2025, with the straight-line trend${sig ? "" : " (not proven)"}`} />
                   <div aria-hidden="true" className="hud num flex justify-between gap-2 tabular-nums">
                     <span>1980–2025</span>
-                    <span>Trend <span style={{ color: trendCol }}>{signed(d.slope_decade)} {nice?.units}</span>/decade</span>
+                    <span>Trend <span style={{ color: sig ? trendCol : "var(--ink-muted)" }}>{signed(d.slope_decade)} {nice?.units}</span>/decade</span>
                   </div>
-                </>}
+                </div>}
               </div>
               <p className="text-base leading-relaxed text-ink-dim">{c.text}</p>
-              <span className="hud inline-flex items-center gap-2 text-signal">Open the case <span className="transition-transform group-hover:translate-x-1" aria-hidden="true">→</span></span>
+              <span className="hud text-ink">Open the case</span>
             </Link>
           );
         })}
@@ -406,9 +410,9 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
           <div className="hud flex items-center justify-between gap-3 border-b border-glass-stroke pb-3">
             <span className="truncate">Case_0{DEMOS.length + 1} · Amazon / Himalaya · Rain</span>
           </div>
-          <h3 className="font-display text-[clamp(26px,2.8vw,38px)] leading-tight">Same warming, opposite rain?</h3>
+          <WaveTitle text="Same warming, opposite rain?" className="font-display text-[26px] leading-[30px]" />
           <div><Badge tone="real">Opposite trends</Badge></div>
-          <div className="flex min-h-0 flex-1 flex-col justify-center gap-2">
+          <div className={MEDIA}><div className={`${ZOOM} gap-2`}>
             {/* Water variable: less rain = dry ochre, more rain = cooling blue (teal is UI only). */}
             {[["amazon", "Amazon rainforest: less rain", "#c48a3f"], ["himalaya", "Himalaya & Tibet: more rain", "var(--cooling)"]].map(([id, label, col]) => {
               const d = cases[id]?.variables.PRECTOTCORR;
@@ -419,9 +423,9 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
                 </div>
               );
             })}
-          </div>
+          </div></div>
           <p className="text-base leading-relaxed text-ink-dim">Both got warmer and both have more water vapor in the air, yet rain fell in one and rose in the other. Both trends pass the strict test.</p>
-          <span className="hud inline-flex items-center gap-2 text-signal">Compare them <span className="transition-transform group-hover:translate-x-1" aria-hidden="true">→</span></span>
+          <span className="hud text-ink">Compare them</span>
         </Link>
         <div className="flex w-[min(80vw,380px)] shrink-0 flex-col gap-5">
           <p className="font-display text-[clamp(32px,3.4vw,48px)] leading-tight tracking-[-0.03em]">Or start your own.</p>
@@ -435,10 +439,10 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
 
 /* ---------------------------------------------------------------- 5. Four checks, stacking */
 const CHECKS = [
-  ["Is the change bigger than the normal wobble?", "A normal Arctic year sits about 0.4 °C off the trend. The 2 °C rise is nearly 5 times that."],
-  ["Could shuffled years do this?", "Scramble the 46 years 2,000 times. Random order beat the real Arctic data less than 1 time in 1,000."],
-  ["Does it survive checking many places at once?", "The strict one, and the one the verdict uses. Arctic false-alarm rate: far below 1 in 10,000."],
-  ["Does it hold up over time?", "Found in 1980–2002 (+0.27 °C per decade), still there in 2003–2025 (+0.35 °C per decade)."],
+  ["Wobble", "Is the change bigger than the normal wobble?", "A normal Arctic year sits about 0.4 °C off the trend. The 2 °C rise is nearly 5 times that."],
+  ["Shuffle", "Could shuffled years do this?", "Scramble the 46 years 2,000 times. Random order beat the real Arctic data less than 1 time in 1,000."],
+  ["Many places", "Does it survive checking many places at once?", "The strict one, and the one the verdict uses. Arctic false-alarm rate: far below 1 in 10,000."],
+  ["Over time", "Does it hold up over time?", "Found in 1980–2002 (+0.27 °C per decade), still there in 2003–2025 (+0.35 °C per decade)."],
 ];
 export function ChecksScene() {
   return (
@@ -462,20 +466,22 @@ function ChecksStage({ p }: { p: MotionValue<number> }) {
           </h2>
           <p className="hidden max-w-[420px] text-[17px] leading-relaxed text-ink-paper-dim sm:block">We run four checks on every trend. The verdict comes from the strictest one, check 3. Here they are on the Arctic case, which passes all four.</p>
           <div className="hidden flex-wrap gap-3 sm:flex">
-            <Button href="/how" className="bg-ink-paper text-white hover:bg-black hover:text-white">How it works</Button>
-            <Button href="/explore?place=arctic&v=T2M&case=arctic" variant="glass" className="border-ink-paper/30 bg-transparent text-ink-paper hover:bg-ink-paper/5 hover:text-ink-paper">Open the Arctic case</Button>
+            <Button href="/how">How it works</Button>
+            <Button href="/explore?place=arctic&v=T2M&case=arctic" variant="glass">Open the Arctic case</Button>
           </div>
         </div>
         <div className="relative h-[min(52vh,360px)] lg:h-[52vh] lg:w-[60%]">
-          {CHECKS.map(([q, d], i) => <CheckCard key={q} p={p} i={i} q={q} d={d} />)}
+          {CHECKS.map(([name, q, d], i) => <CheckCard key={q} p={p} i={i} name={name} q={q} d={d} />)}
         </div>
       </div>
     </>
   );
 }
-function CheckCard({ p, i, q, d }: { p: MotionValue<number>; i: number; q: string; d: string }) {
+/** CheckCards: playing cards dealt face-down from the stack (rotateY 180 → 0) as you scroll. */
+function CheckCard({ p, i, name, q, d }: { p: MotionValue<number>; i: number; name: string; q: string; d: string }) {
   const a = 0.06 + i * 0.2;
   const y = useTransform(p, [a, a + 0.14], i === 0 ? ["0vh", "0vh"] : ["90vh", "0vh"]);
+  const rotateY = useTransform(p, [a, a + 0.14], i === 0 ? [0, 0] : [180, 0]);
   // Shrink and dim as later cards land on top.
   const scale = useTransform(p, [a + 0.2, a + 0.2 * (CHECKS.length - i)], [1, 1 - 0.05 * (CHECKS.length - 1 - i)]);
   // The PASSED stamp lands once this card has arrived (state only flips when the threshold is crossed).
@@ -483,15 +489,25 @@ function CheckCard({ p, i, q, d }: { p: MotionValue<number>; i: number; q: strin
   const [landed, setLanded] = useState(() => p.get() >= arrive);
   useMotionValueEvent(p, "change", (v) => setLanded(v >= arrive));
   return (
-    <motion.div style={{ y, scale, top: `${i * 18}px`, zIndex: i }}
-      className="absolute inset-x-0 flex h-[min(40svh,340px)] origin-top flex-col justify-between rounded-[28px] bg-white p-5 shadow-[0_30px_80px_-30px_rgba(11,16,32,0.4)] sm:p-8">
-      <div className="flex items-start justify-between gap-4">
-        <h3 className="font-display text-[clamp(24px,2.4vw,34px)] leading-tight">{q}</h3>
-        <span className="num text-[clamp(28px,4vw,56px)] leading-none tabular-nums text-ink-paper-dim">0{i + 1}</span>
+    <motion.div style={{ y, scale, rotateY, top: `${i * 18}px`, zIndex: i, transformPerspective: 1400 }}
+      className="absolute inset-x-0 h-[min(40svh,340px)] origin-top [transform-style:preserve-3d]">
+      <div className="absolute inset-0 flex flex-col justify-between gap-3 rounded-[var(--radius-sm)] border border-hairline bg-ground-raised p-5 shadow-[0_30px_80px_-30px_rgba(11,16,32,0.4)] [backface-visibility:hidden] sm:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <span className="pixel text-ink-muted">{name}</span>
+            <h3 className="font-display text-[clamp(22px,2.2vw,30px)] leading-tight">{q}</h3>
+          </div>
+          <span className="pixel shrink-0 text-[clamp(28px,4vw,48px)] leading-none text-ink-muted">0{i + 1}</span>
+        </div>
+        <div className="flex items-end justify-between gap-4">
+          <p className="max-w-[460px] text-[16px] leading-[22px] text-ink-muted">{d}</p>
+          <span className="flex min-h-[36px] min-w-[96px] shrink-0 justify-end">{landed && <VerdictStamp verdict="passed" />}</span>
+        </div>
+        <span aria-hidden="true" className="pixel absolute bottom-2 left-1/2 hidden -translate-x-1/2 rotate-180 text-[10px] text-ink-faint sm:block">{name}</span>
       </div>
-      <div className="flex items-end justify-between gap-4">
-        <p className="max-w-[460px] text-[16px] leading-relaxed text-ink-paper-dim">{d}</p>
-        <span className="flex min-h-[36px] min-w-[96px] shrink-0 justify-end">{landed && <VerdictStamp verdict="passed" paper />}</span>
+      {/* Face-down back, seen while the card is dealt. */}
+      <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center rounded-[var(--radius-sm)] bg-slate [backface-visibility:hidden] [transform:rotateY(180deg)]">
+        <span className="pixel text-[clamp(28px,4vw,48px)] text-on-slate/40">+</span>
       </div>
     </motion.div>
   );
@@ -502,9 +518,7 @@ function CheckCard({ p, i, q, d }: { p: MotionValue<number>; i: number; q: strin
 export function EndBeat() {
   return (
     <div className="bleed flex justify-center bg-void px-6 py-24 sm:py-32">
-      <Link href="/explore" className="hud group inline-flex min-h-[44px] items-center gap-2 text-signal">
-        Keep scrolling · open a case <span className="transition-transform group-hover:translate-x-1" aria-hidden="true">→</span>
-      </Link>
+      <Button href="/explore" variant="glass">Keep going · open a case</Button>
     </div>
   );
 }

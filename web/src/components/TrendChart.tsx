@@ -23,7 +23,7 @@ type Props = {
 };
 
 const R = 18, T = 40, B = 34;
-const MONO = "var(--font-jetbrains), ui-monospace, monospace";
+const MONO = "var(--font-mono)";
 const axis = { fontFamily: MONO, fontSize: 11, fill: "var(--ink-dim)", fontVariantNumeric: "tabular-nums" } as const;
 
 // Nice round axis ticks between lo and hi.
