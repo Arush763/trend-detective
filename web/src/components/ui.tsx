@@ -31,7 +31,7 @@ const TONE = {
   alarm: "border-false-alarm/50 bg-false-alarm/10 text-false-alarm",
 };
 
-/** Mono uppercase verdict chip: real/pass = accent fill, maybe/na = muted, none = no-trend grey, fail/alarm = false-alarm magenta. */
+/** Mono uppercase verdict chip: real/pass = accent fill, maybe/na = muted, none = no-trend grey, fail/alarm = false-alarm violet. */
 export function Badge({ tone, children }: { tone: keyof typeof TONE; children: ReactNode }) {
   return <span className={`hud inline-flex items-center whitespace-nowrap rounded-full border px-3 py-1 ${TONE[tone]}`}>{children}</span>;
 }

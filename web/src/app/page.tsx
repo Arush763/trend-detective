@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { DEMOS, get, type Grid, type Meta, type Region } from "@/lib/data";
-import { CasesScene, ChecksScene, EndBeat, HeroScene, MissionScene, NoiseScene, SmoothScroll } from "@/components/Scenes";
+import { CasesScene, ChecksScene, EndBeat, HeroScene, MissionScene, NoiseScene, SmoothScroll, StoryGlobe } from "@/components/Scenes";
 
-// The landing page is five scroll-scrubbed scenes: each pins to the screen while you scroll through it.
+// The landing page is five scroll-scrubbed scenes over one story globe that follows them.
 export default function Landing() {
   const [meta, setMeta] = useState<Meta>(null);
   const [grid, setGrid] = useState<Grid>(null);
@@ -21,7 +21,8 @@ export default function Landing() {
   return (
     <div className="-mb-20 -mt-24">
       <SmoothScroll />
-      <HeroScene grid={grid} cells={meta?.grid_summary.T2M.cells} />
+      <StoryGlobe grid={grid} meta={meta} />
+      <HeroScene cells={meta?.grid_summary.T2M.cells} />
       <MissionScene meta={meta} />
       <NoiseScene meta={meta} grid={grid} />
       <CasesScene cases={cases} />

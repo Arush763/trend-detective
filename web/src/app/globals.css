@@ -1,23 +1,24 @@
 @import "tailwindcss";
 
 /* Trend Detective design system (.claude/skills/trend-detective-design-system). Night is the default room, Paper the light chapter.
-   Palette: black, ash grey, one navy accent. Navy is a fill only (too dark for lines on black); lines and indicators use --signal:
-   ash ink on Night, navy on Paper. Data colours (warming/cooling/false alarm) stay: they carry meaning. */
+   Palette: black, dark grey, ash, one navy accent. Navy is a fill only (too dark for lines on black); lines and indicators use
+   --signal (ash ink). Data: warming/drier = ash, cooling/wetter = light navy, false alarm = one muted violet.
+   "Paper" is kept as the name of the second chapter colour, but it is now a dark grey, not a light page. */
 :root, [data-theme='night'] {
   --ground:#0a0a0b; --ground-raised:#151516; --ground-sunken:#0e0e0f; --tint:#1c1c1e;
   --ink:#ecebe8; --ink-muted:#a3a39f; --ink-faint:#4b4b49; --hairline:#272728;
   --slate:#2a2a2b; --on-slate:#ffffff;
   --accent:#1f3a8a; --accent-ink:#ffffff; --accent-wash:#1f3a8a59;
   --signal:var(--ink);
-  --warming:#ff8a3d; --cooling:#5b93ff; --false-alarm:#e879f9; --no-trend:#75756f;
+  --warming:#dcdad4; --cooling:#6e8fe0; --false-alarm:#c58ad6; --no-trend:#75756f;
 }
 [data-theme='paper'], .paper, .light-scene {
-  --ground:#e9e8e4; --ground-raised:#f6f5f2; --ground-sunken:#dcdbd6; --tint:#d0d0ca;
-  --ink:#0a0a0b; --ink-muted:#54544f; --ink-faint:#a8a7a1; --hairline:#cfcec8;
-  --slate:#2a2a2b; --on-slate:#ffffff;
-  --accent:#1f3a8a; --accent-ink:#ffffff; --accent-wash:#1f3a8a21;
-  --signal:var(--accent);
-  --warming:#d9520b; --cooling:#1f5fe0; --false-alarm:#a723c4; --no-trend:#7c7b75;
+  --ground:#1b1b1d; --ground-raised:#232325; --ground-sunken:#161617; --tint:#2a2a2c;
+  --ink:#ecebe8; --ink-muted:#a8a8a4; --ink-faint:#55554f; --hairline:#323234;
+  --slate:#2f2f31; --on-slate:#ffffff;
+  --accent:#1f3a8a; --accent-ink:#ffffff; --accent-wash:#1f3a8a59;
+  --signal:var(--ink);
+  --warming:#dcdad4; --cooling:#6e8fe0; --false-alarm:#c58ad6; --no-trend:#75756f;
 }
 :root {
   --space-1:4px; --space-2:8px; --space-3:15px; --space-4:20px; --space-5:30px; --space-6:60px; --space-7:120px; --space-8:160px;
@@ -37,14 +38,14 @@
 :root, [data-theme], .paper, .light-scene {
   --void: var(--ground);
   --night: var(--ground-raised);
-  --paper: #e9e8e4;
+  --paper: #1b1b1db8; /* dark grey chapter, a little see-through so the story globe shows behind */
   --glass: var(--ground-raised);
   --glass-stroke: var(--hairline);
   --noise: var(--no-trend);
   --ink-dim: var(--ink-muted);
   --signal-ink: var(--ink);
-  --ink-paper: #0a0a0b;
-  --ink-paper-dim: #54544f;
+  --ink-paper: var(--ink);
+  --ink-paper-dim: var(--ink-muted);
   --ease-out: var(--ease-expo);
   --ease-inout: var(--ease-lusion);
   --bg: var(--ground);
@@ -278,7 +279,7 @@ body {
   }
 
   /* Light chapter (printed-report feel): the paper tokens above re-resolve inside it. */
-  .paper, .light-scene { background: var(--ground); color: var(--ink); }
+  .paper, .light-scene { background: var(--paper); color: var(--ink); }
 }
 
 /* Full-width band inside the centred page column */

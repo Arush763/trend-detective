@@ -8,7 +8,7 @@ import Lenis from "lenis";
 import { DEMOS, NICE, signed, type Grid, type Meta, type Region } from "@/lib/data";
 import { Globe, coast } from "./Globe";
 import { Badge, Button, HudCallout, RegMarks, SectionLabel, Sparkline, VerdictStamp, WaveTitle, useReducedMotion } from "./ui";
-import { Dust, LightLeaks } from "./Fancy";
+import { Dust } from "./Fancy";
 
 /** Smooth, inertial scrolling for the page this is mounted on (off for reduced motion). */
 export function SmoothScroll() {
@@ -20,13 +20,14 @@ export function SmoothScroll() {
   return null;
 }
 
-/** A section `vh` tall with a sticky full-screen stage; children get the 0→1 scroll progress. `tone` is the chapter colour. */
-function Pinned({ vh, id, tone, children }: { vh: number; id?: string; tone: "void" | "paper"; children: (p: MotionValue<number>) => ReactNode }) {
+/** A section `vh` tall with a sticky full-screen stage; children get the 0→1 scroll progress. `tone` is the chapter colour:
+ * "void" is see-through (black, with the story globe behind), "paper" a slightly see-through dark grey. `chapter` tells the story globe where it is. */
+function Pinned({ vh, id, tone, chapter, children }: { vh: number; id?: string; tone: "void" | "paper"; chapter: string; children: (p: MotionValue<number>) => ReactNode }) {
   const ref = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
-  const bg = tone === "paper" ? "paper" : "bg-void";
+  const bg = tone === "paper" ? "paper" : "";
   return (
-    <section ref={ref} id={id} className={`bleed ${bg}`} style={{ height: `${vh}vh` }}>
+    <section ref={ref} id={id} data-chapter={chapter} className={`bleed ${bg}`} style={{ height: `${vh}vh` }}>
       <div className={`sticky top-0 h-[100svh] overflow-hidden ${bg}`}>{children(scrollYProgress)}</div>
     </section>
   );
@@ -35,20 +36,18 @@ function Pinned({ vh, id, tone, children }: { vh: number; id?: string; tone: "vo
 const useFade = (p: MotionValue<number>, a: number, b: number, c: number, d: number) => useTransform(p, [a, b, c, d], [0, 1, 1, 0]);
 
 /* ---------------------------------------------------------------- 1. Hero */
-export function HeroScene({ grid, cells }: { grid: Grid | null; cells?: number }) {
+export function HeroScene({ cells }: { cells?: number }) {
   return (
-    <Pinned vh={300} tone="void">
-      {(p) => <HeroStage p={p} grid={grid} cells={cells} />}
+    <Pinned vh={300} tone="void" chapter="hero">
+      {(p) => <HeroStage p={p} cells={cells} />}
     </Pinned>
   );
 }
-function HeroStage({ p, grid, cells }: { p: MotionValue<number>; grid: Grid | null; cells?: number }) {
+function HeroStage({ p, cells }: { p: MotionValue<number>; cells?: number }) {
   const h1 = useTransform(p, [0, 0.28, 0.4], [1, 1, 0]);
   const h1y = useTransform(p, [0, 0.4], [0, -80]);
   const h2 = useFade(p, 0.38, 0.48, 0.7, 0.8);
   const h2y = useTransform(p, [0.38, 0.8], [40, -40]);
-  const globeY = useTransform(p, [0, 0.75], ["64%", "18%"]);
-  const globeS = useTransform(p, [0, 0.75], [1, 0.82]);
   // Fade on absolute page scroll: the pinned section's progress can read slightly above 0 at the very top.
   const { scrollY } = useScroll();
   const hint = useTransform(scrollY, [0, 120], [1, 0]);
@@ -58,9 +57,8 @@ function HeroStage({ p, grid, cells }: { p: MotionValue<number>; grid: Grid | nu
     <>
       {/* The inset card: 16–24px margin on the sides and bottom, and clear of the floating nav on top. */}
       <div className="absolute inset-x-4 bottom-5 top-[72px] sm:inset-x-6">
-        <div className="absolute inset-0 overflow-hidden rounded-[28px] border border-glass-stroke bg-night/70">
-          <LightLeaks />
-          <Dust />
+        <div className="absolute inset-0 overflow-hidden rounded-[var(--radius-sm)] border border-hairline">
+          <Dust count={60} />
           <motion.div style={{ opacity: h1, y: h1y }} className="absolute inset-x-0 top-[6vh] z-10 mx-auto flex max-w-[1200px] flex-col items-start gap-5 px-6 sm:px-12">
             <p className="hud">NASA Space Apps 2026 · MERRA-2 · 1980–2025</p>
             <h1 className="font-display text-[clamp(40px,6.6vw,96px)] leading-[0.95] tracking-[-0.03em]">
@@ -79,9 +77,6 @@ function HeroStage({ p, grid, cells }: { p: MotionValue<number>; grid: Grid | nu
             </p>
           </motion.div>
 
-          <motion.div style={{ y: globeY, scale: globeS }} className="pointer-events-none absolute bottom-0 left-1/2 w-[min(1100px,135vw)] -translate-x-1/2">
-            <Globe grid={grid} mode="real" spin zoom={false} label="A slowly spinning globe of NASA data. Orange shows places where air temperature rose since 1980 and passed the strict test." />
-          </motion.div>
         </div>
         <RegMarks />
         <motion.p style={{ opacity: hint }} className="glass-strong hud absolute bottom-0 left-1/2 z-10 -translate-x-1/2 translate-y-1/2 whitespace-nowrap rounded-full px-5 py-2 !text-ink">Scroll to explore</motion.p>
@@ -114,7 +109,7 @@ function Word({ p, a, b, bold, children }: { p: MotionValue<number>; a: number; 
 export function MissionScene({ meta }: { meta: Meta }) {
   const words = useMemo(() => parseBold(MISSION), []);
   return (
-    <Pinned vh={320} tone="paper">
+    <Pinned vh={320} tone="paper" chapter="mission">
       {(p) => <MissionStage p={p} meta={meta} words={words} />}
     </Pinned>
   );
@@ -125,7 +120,6 @@ function MissionStage({ p, meta, words }: { p: MotionValue<number>; meta: Meta; 
   const out = useTransform(p, [0.8, 0.88], [1, 0]);
   const stats = useTransform(p, [0.6, 0.72], [0, 1]);
   const statsY = useTransform(p, [0.6, 0.72], [60, 0]);
-  const curtain = useTransform(p, [0.86, 1], ["circle(0% at 50% 100%)", "circle(150% at 50% 100%)"]);
   const N = words.length;
   return (
     <>
@@ -141,8 +135,7 @@ function MissionStage({ p, meta, words }: { p: MotionValue<number>; meta: Meta; 
         <motion.div style={{ opacity: stats, y: statsY }} className="grid grid-cols-2 gap-4 border-t border-ink-paper/15 pt-6 sm:gap-6 sm:pt-8 lg:grid-cols-4">
           {[
             { n: s?.cells, c: "text-ink-paper", t: "places tested" },
-            // #a21caf: --false-alarm (#e879f9) is far too pale on --paper (about 2:1), so this darker magenta keeps the same hue at 5.5:1.
-            { n: s?.noise_sig, c: "text-[#a21caf]", t: "false alarms from luck" },
+            { n: s?.noise_sig, c: "text-false-alarm", t: "false alarms from luck" },
             { n: s?.real_sig, c: "text-signal-ink", t: "places with a real trend" },
             { n: meta?.years.length, c: "text-ink-paper", t: "years of NASA data" },
           ].map((k) => (
@@ -153,7 +146,6 @@ function MissionStage({ p, meta, words }: { p: MotionValue<number>; meta: Meta; 
           ))}
         </motion.div>
       </motion.div>
-      <motion.div aria-hidden="true" style={{ clipPath: curtain }} className="absolute inset-0 z-20 bg-void" />
     </>
   );
 }
@@ -161,10 +153,10 @@ function MissionStage({ p, meta, words }: { p: MotionValue<number>; meta: Meta; 
 /* ---------------------------------------------------------------- 3. The noise test (dot map) */
 type RGB = [number, number, number];
 // Same hues as the tokens: --warming, --cooling, --false-alarm, and a dark neutral for "no trend found".
-const DIM: RGB = [44, 44, 42], UP: RGB = [255, 138, 61], DOWN: RGB = [74, 163, 255], LUCK: RGB = [232, 121, 249];
+const DIM: RGB = [44, 44, 42], UP: RGB = [220, 218, 212], DOWN: RGB = [110, 143, 224], LUCK: RGB = [197, 138, 214];
 const STAGES = [
   { at: 0.0, word: "Every place", title: "Here is every place on Earth", text: "Each dot stands for four of our 12,960 map squares (each about 200 km wide). For each one we have 46 years of NASA air-temperature data.", key: "cells", noun: "places" },
-  { at: 0.22, word: "Simple", title: "Step 1 · The simple test", text: "Check each place on its own, the way most maps are made. Orange: warming. Blue: cooling.", key: "naive_sig", noun: "look like they're changing" },
+  { at: 0.22, word: "Simple", title: "Step 1 · The simple test", text: "Check each place on its own, the way most maps are made. Light: warming. Blue: cooling.", key: "naive_sig", noun: "look like they're changing" },
   { at: 0.46, word: "Luck", title: "Step 2 · The luck test", text: "Now shuffle each place's years into random order, which wipes out any real trend. The simple test still lights up about 1 place in 20. Those are false alarms.", key: "noise_sig", noun: "false alarms from pure luck" },
   { at: 0.7, word: "Signal", title: "Step 3 · The strict test", text: "Correct for years that resemble each other and for testing thousands of places at once. What survives is very unlikely to be luck.", key: "real_sig", noun: "places with a real signal" },
 ] as const;
@@ -177,7 +169,7 @@ type Dot = { x: number; y: number; c: RGB[]; dis?: Dissolve };
 
 export function NoiseScene({ meta, grid }: { meta: Meta; grid: Grid | null }) {
   return (
-    <Pinned vh={480} tone="void">
+    <Pinned vh={480} tone="void" chapter="noise">
       {(p) => <NoiseStage p={p} meta={meta} grid={grid} />}
     </Pinned>
   );
@@ -245,7 +237,7 @@ function NoiseStage({ p, meta, grid }: { p: MotionValue<number>; meta: Meta; gri
         ctx.fillStyle = `rgb(${DIM[0]},${DIM[1]},${DIM[2]})`;
         ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 6.2832); ctx.fill();
         if (tt < 1) {
-          ctx.fillStyle = "#e879f9";
+          ctx.fillStyle = "#c58ad6";
           ctx.globalAlpha = 1 - tt;
           ctx.beginPath(); ctx.arc(cx, cy, rad * (1 - 0.5 * tt), 0, 6.2832); ctx.fill();
           ctx.globalAlpha = 1;
@@ -255,7 +247,7 @@ function NoiseStage({ p, meta, grid }: { p: MotionValue<number>; meta: Meta; gri
         ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 6.2832); ctx.fill();
       }
       if (tt > 0 && tt < 1 && d.dis) {
-        ctx.fillStyle = "#e879f9";
+        ctx.fillStyle = "#c58ad6";
         ctx.globalAlpha = tt < 0.4 ? 1 : (1 - tt) / 0.6; // full strength, fading over the last 60%
         for (const q of d.dis.parts) {
           const dist = q.dist * reach * tt; // 1-3x the dot spacing, mostly upward
@@ -344,7 +336,7 @@ function NoiseStage({ p, meta, grid }: { p: MotionValue<number>; meta: Meta; gri
 /* ---------------------------------------------------------------- 4. Cases, sideways */
 export function CasesScene({ cases }: { cases: Record<string, Region> }) {
   return (
-    <Pinned vh={320} id="cases" tone="void">
+    <Pinned vh={320} id="cases" tone="void" chapter="cases">
       {(p) => <CasesStage p={p} cases={cases} />}
     </Pinned>
   );
@@ -382,7 +374,7 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
           const nice = NICE[c.v];
           const water = ["TQV", "PRECTOTCORR", "EVAP", "GWETROOT", "SNOMAS", "RUNOFF"].includes(c.v);
           const rising = (d?.slope_decade ?? 0) > 0;
-          const trendCol = water ? (rising ? "var(--cooling)" : "#c48a3f") : (rising ? "var(--warming)" : "var(--cooling)");
+          const trendCol = water ? (rising ? "var(--cooling)" : "var(--warming)") : (rising ? "var(--warming)" : "var(--cooling)");
           const sig = c.tone === "real";
           const lineCol = sig ? trendCol : "var(--no-trend)"; // not proven: dashed grey
           return (
@@ -413,8 +405,8 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
           <WaveTitle text="Same warming, opposite rain?" className="font-display text-[26px] leading-[30px]" />
           <div><Badge tone="real">Opposite trends</Badge></div>
           <div className={MEDIA}><div className={`${ZOOM} gap-2`}>
-            {/* Water variable: less rain = dry ochre, more rain = cooling blue (teal is UI only). */}
-            {[["amazon", "Amazon rainforest: less rain", "#c48a3f"], ["himalaya", "Himalaya & Tibet: more rain", "var(--cooling)"]].map(([id, label, col]) => {
+            {/* Water variable: less rain = ash (drier), more rain = navy (wetter). */}
+            {[["amazon", "Amazon rainforest: less rain", "var(--warming)"], ["himalaya", "Himalaya & Tibet: more rain", "var(--cooling)"]].map(([id, label, col]) => {
               const d = cases[id]?.variables.PRECTOTCORR;
               return d && (
                 <div key={id} className="flex flex-col gap-0.5">
@@ -446,17 +438,14 @@ const CHECKS = [
 ];
 export function ChecksScene() {
   return (
-    <Pinned vh={360} tone="paper">
+    <Pinned vh={360} tone="paper" chapter="checks">
       {(p) => <ChecksStage p={p} />}
     </Pinned>
   );
 }
 function ChecksStage({ p }: { p: MotionValue<number> }) {
-  // End on the site's dark colour so the light scene hands off smoothly to the dark footer.
-  const curtain = useTransform(p, [0.88, 1], ["circle(0% at 50% 100%)", "circle(150% at 50% 100%)"]);
   return (
     <>
-      <motion.div aria-hidden="true" style={{ clipPath: curtain }} className="absolute inset-0 z-30 bg-void" />
       <div className="relative z-10 mx-auto flex h-full max-w-[1200px] flex-col justify-center gap-6 px-4 pt-20 sm:gap-10 sm:px-8 lg:flex-row lg:items-center">
         <div className="flex flex-col gap-5 lg:w-[40%]">
           <SectionLabel>Method</SectionLabel>
@@ -517,8 +506,95 @@ function CheckCard({ p, i, name, q, d }: { p: MotionValue<number>; i: number; na
 /** A short "keep scrolling" line between the last scene and the footer (Lusion-style). */
 export function EndBeat() {
   return (
-    <div className="bleed flex justify-center bg-void px-6 py-24 sm:py-32">
+    <div data-chapter="end" className="bleed flex justify-center px-6 py-24 sm:py-32">
       <Button href="/explore" variant="glass">Keep going · open a case</Button>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- The story globe */
+// One globe behind the whole landing page. Each chapter has a pose (centre offset in vw/vh from the middle of the screen,
+// scale, opacity); it holds while the chapter plays and glides to the next pose across the hand-off between chapters.
+type Pose = { x: number; y: number; s: number; o: number };
+const POSES: Record<string, Pose[]> = {
+  hero: [{ x: 0, y: 40, s: 1, o: 1 }, { x: 0, y: 12, s: 0.8, o: 1 }],
+  mission: [{ x: 30, y: 6, s: 0.7, o: 0.75 }],
+  noise: [{ x: -40, y: -27, s: 0.17, o: 0.9 }],
+  cases: [{ x: 30, y: 6, s: 0.62, o: 0.8 }],
+  checks: [{ x: -30, y: 24, s: 0.5, o: 0.7 }],
+  end: [{ x: 0, y: -11, s: 0.3, o: 0.55 }],
+};
+// Phones stack the noise chapter vertically, so the mini globe moves to the empty bottom-right corner.
+const POSES_NARROW: Record<string, Pose[]> = { noise: [{ x: 32, y: 45, s: 0.26, o: 0.9 }] };
+const WIDE = { lat: 30, lng: -25, altitude: 2.1 };
+const mix = (a: Pose, b: Pose, t: number): Pose => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, s: a.s + (b.s - a.s) * t, o: a.o + (b.o - a.o) * t });
+
+/** Fixed behind the landing page: moves with the story and turns to the place each case is about (with its outline). */
+export function StoryGlobe({ grid, meta }: { grid: Grid | null; meta: Meta }) {
+  const { scrollY } = useScroll();
+  // Measured chapter keyframes: [scroll position, pose] pairs, rising.
+  const keys = useRef<{ at: number; pose: Pose; chapter: string; top: number; len: number }[]>([]);
+  const [place, setPlace] = useState<string | null>(null);
+
+  useEffect(() => {
+    const measure = () => {
+      const vh = window.innerHeight, out: typeof keys.current = [];
+      const set = window.innerWidth < 768 ? { ...POSES, ...POSES_NARROW } : POSES;
+      document.querySelectorAll<HTMLElement>("[data-chapter]").forEach((el) => {
+        const name = el.dataset.chapter!, poses = set[name];
+        if (!poses) return;
+        const top = el.getBoundingClientRect().top + window.scrollY, len = Math.max(1, el.offsetHeight - vh);
+        out.push({ at: top, pose: poses[0], chapter: name, top, len });
+        out.push({ at: top + len, pose: poses[poses.length - 1], chapter: name, top, len });
+      });
+      keys.current = out;
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    return () => ro.disconnect();
+  }, []);
+
+  const poseAt = (y: number): Pose => {
+    const k = keys.current;
+    if (!k.length) return POSES.hero[0];
+    if (y <= k[0].at) return k[0].pose;
+    for (let i = 1; i < k.length; i++) if (y <= k[i].at) return mix(k[i - 1].pose, k[i].pose, (y - k[i - 1].at) / Math.max(1, k[i].at - k[i - 1].at));
+    return k[k.length - 1].pose;
+  };
+  const x = useTransform(scrollY, (y) => `${poseAt(y).x}vw`);
+  const yy = useTransform(scrollY, (y) => `${poseAt(y).y}vh`);
+  const scale = useTransform(scrollY, (y) => poseAt(y).s);
+  const opacity = useTransform(scrollY, (y) => poseAt(y).o);
+
+  // Which place to turn to: the case card in view while the cases scroll sideways, the Arctic during the checks.
+  useMotionValueEvent(scrollY, "change", (y) => {
+    const vh = window.innerHeight;
+    const ch = keys.current.find((c) => y >= c.top - vh / 2 && y < c.top + c.len + vh / 2);
+    let next: string | null = null;
+    if (ch?.chapter === "checks") next = "arctic";
+    if (ch?.chapter === "cases") {
+      const t = Math.min(1, Math.max(0, ((y - ch.top) / ch.len - 0.05) / 0.83)); // same window as the sideways track
+      const i = Math.round(t * (DEMOS.length + 2)); // intro, the demos, the compare card, the outro
+      next = i <= DEMOS.length ? DEMOS[Math.max(0, i - 1)].place : i === DEMOS.length + 1 ? "compare" : null;
+    }
+    setPlace((p) => (p === next ? p : next));
+  });
+
+  const region = place && place !== "compare" ? meta?.regions.find((r: { id: string }) => r.id === place) : null;
+  const focus = useMemo(() => {
+    if (place === "compare") return { lat: 5, lng: 15, altitude: 2.6 };
+    if (!region) return WIDE;
+    const [a, b, c, d] = region.box;
+    return d - c >= 359 ? { lat: 70, lng: 20, altitude: 1.9 } : { lat: (a + b) / 2, lng: (c + d) / 2, altitude: 1.5 };
+  }, [place, region]);
+
+  return (
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <motion.div style={{ x, y: yy, scale, opacity }} className="absolute left-1/2 top-1/2 w-[min(1100px,135vw)] -translate-x-1/2 -translate-y-1/2">
+        <Globe grid={grid} mode="real" spin={!region && place !== "compare"} zoom={false} focus={focus} box={region?.box}
+          label="A globe of NASA air-temperature trends that follows the story. Light shows warming, blue cooling, where the trend passed the strict test." />
+      </motion.div>
     </div>
   );
 }
