@@ -60,11 +60,11 @@ export function Hud({ children, className = "", as: Tag = "span" }: { children: 
   return <Tag className={`hud ${className}`}>{children}</Tag>;
 }
 
-/** `• LABEL` section label: an accent dot, muted text. */
+/** `• LABEL` section label: a signal dot (ash on Night, navy on Paper), muted text. */
 export function SectionLabel({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <p className={`hud ${className}`}>
-      <span aria-hidden="true" className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-accent align-[0.1em]" />{children}
+      <span aria-hidden="true" className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-signal align-[0.1em]" />{children}
     </p>
   );
 }

@@ -1,19 +1,23 @@
 @import "tailwindcss";
 
-/* Trend Detective design system (.claude/skills/trend-detective-design-system). Night is the default room, Paper the light chapter. */
+/* Trend Detective design system (.claude/skills/trend-detective-design-system). Night is the default room, Paper the light chapter.
+   Palette: black, ash grey, one navy accent. Navy is a fill only (too dark for lines on black); lines and indicators use --signal:
+   ash ink on Night, navy on Paper. Data colours (warming/cooling/false alarm) stay: they carry meaning. */
 :root, [data-theme='night'] {
-  --ground:#07090d; --ground-raised:#12151c; --ground-sunken:#0b0d12; --tint:#1a2340;
-  --ink:#f3f4fa; --ink-muted:#a3a6b3; --ink-faint:#4a4e5c; --hairline:#262a35;
-  --slate:#2b2e3a; --on-slate:#ffffff;
-  --accent:#36f1cd; --accent-ink:#04140f; --accent-wash:#36f1cd1f;
-  --warming:#ff8a3d; --cooling:#5b93ff; --false-alarm:#e879f9; --no-trend:#6b7080;
+  --ground:#0a0a0b; --ground-raised:#151516; --ground-sunken:#0e0e0f; --tint:#1c1c1e;
+  --ink:#ecebe8; --ink-muted:#a3a39f; --ink-faint:#4b4b49; --hairline:#272728;
+  --slate:#2a2a2b; --on-slate:#ffffff;
+  --accent:#1f3a8a; --accent-ink:#ffffff; --accent-wash:#1f3a8a59;
+  --signal:var(--ink);
+  --warming:#ff8a3d; --cooling:#5b93ff; --false-alarm:#e879f9; --no-trend:#75756f;
 }
 [data-theme='paper'], .paper, .light-scene {
-  --ground:#f0f1fa; --ground-raised:#ffffff; --ground-sunken:#e4e6ef; --tint:#c9d3ff;
-  --ink:#0a0b0f; --ink-muted:#55586a; --ink-faint:#a9adbf; --hairline:#d3d6e3;
-  --slate:#2b2e3a; --on-slate:#ffffff;
-  --accent:#36f1cd; --accent-ink:#04140f; --accent-wash:#36f1cd2e;
-  --warming:#d9520b; --cooling:#1f5fe0; --false-alarm:#a723c4; --no-trend:#7a7e8f;
+  --ground:#e9e8e4; --ground-raised:#f6f5f2; --ground-sunken:#dcdbd6; --tint:#d0d0ca;
+  --ink:#0a0a0b; --ink-muted:#54544f; --ink-faint:#a8a7a1; --hairline:#cfcec8;
+  --slate:#2a2a2b; --on-slate:#ffffff;
+  --accent:#1f3a8a; --accent-ink:#ffffff; --accent-wash:#1f3a8a21;
+  --signal:var(--accent);
+  --warming:#d9520b; --cooling:#1f5fe0; --false-alarm:#a723c4; --no-trend:#7c7b75;
 }
 :root {
   --space-1:4px; --space-2:8px; --space-3:15px; --space-4:20px; --space-5:30px; --space-6:60px; --space-7:120px; --space-8:160px;
@@ -33,15 +37,14 @@
 :root, [data-theme], .paper, .light-scene {
   --void: var(--ground);
   --night: var(--ground-raised);
-  --paper: #f0f1fa;
+  --paper: #e9e8e4;
   --glass: var(--ground-raised);
   --glass-stroke: var(--hairline);
-  --signal: var(--accent);
   --noise: var(--no-trend);
   --ink-dim: var(--ink-muted);
   --signal-ink: var(--ink);
-  --ink-paper: #0a0b0f;
-  --ink-paper-dim: #55586a;
+  --ink-paper: #0a0a0b;
+  --ink-paper-dim: #54544f;
   --ease-out: var(--ease-expo);
   --ease-inout: var(--ease-lusion);
   --bg: var(--ground);
@@ -120,8 +123,8 @@ body {
 /* In a layer so Tailwind utility classes (e.g. a link's text color) can override these. */
 @layer base {
   a { color: var(--ink); text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: var(--ink-faint); }
-  @media (hover: hover) { a:hover { text-decoration-color: var(--accent); } }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  @media (hover: hover) { a:hover { text-decoration-color: var(--ink); } }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
   button:not(:disabled), summary, label:has(input:not(:disabled)), select { cursor: pointer; }
   h1, h2, h3 { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.02em; margin: 0; }
   p { margin: 0; }

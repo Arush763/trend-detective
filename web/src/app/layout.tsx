@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false },
 };
 
-export const viewport: Viewport = { themeColor: "#07090d", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#0a0a0b", colorScheme: "dark" };
 
 const LINKS = [["/#cases", "Demo cases"], ["/explore", "Explore a place"], ["/globe", "Globe"], ["/how", "How it works"], ["https://github.com/Arush763/trend-detective", "Code on GitHub"]];
 

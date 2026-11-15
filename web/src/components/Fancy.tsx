@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "./ui";
 import { get } from "@/lib/data";
 
-/** Soft colored light leaking in from the corners (signal teal and cooling blue, 10-25%). Parent must be `relative`; keep it away from numbers. */
+/** Soft colored light leaking in from the corners (navy accent, 20-35%). Parent must be `relative`; keep it away from numbers. */
 export function LightLeaks({ className = "" }: { className?: string }) {
   return (
     <div aria-hidden="true" className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
-      <div className="absolute -left-[12%] -top-[22%] h-[70%] min-h-[240px] w-[55%] min-w-[320px] rounded-full opacity-[0.2]" style={{ background: "radial-gradient(closest-side, var(--signal), transparent)", filter: "blur(40px)" }} />
-      <div className="absolute -bottom-[26%] -right-[12%] h-[75%] min-h-[260px] w-[55%] min-w-[340px] rounded-full opacity-[0.22]" style={{ background: "radial-gradient(closest-side, var(--cooling), transparent)", filter: "blur(48px)" }} />
+      <div className="absolute -left-[12%] -top-[22%] h-[70%] min-h-[240px] w-[55%] min-w-[320px] rounded-full opacity-[0.2]" style={{ background: "radial-gradient(closest-side, var(--accent), transparent)", filter: "blur(40px)" }} />
+      <div className="absolute -bottom-[26%] -right-[12%] h-[75%] min-h-[260px] w-[55%] min-w-[340px] rounded-full opacity-[0.22]" style={{ background: "radial-gradient(closest-side, var(--accent), transparent)", filter: "blur(48px)" }} />
     </div>
   );
 }
@@ -39,7 +39,7 @@ export function Dust({ className = "", count = 110 }: { className?: string; coun
       const dt = Math.min(64, t - last || 16); last = t;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "#f4f6fb";
+      ctx.fillStyle = "#ecebe8";
       for (const d of dots) {
         d.x += d.vx * dt * 0.06; d.y += d.vy * dt * 0.06;
         if (d.x < 0) d.x += 1; else if (d.x > 1) d.x -= 1;

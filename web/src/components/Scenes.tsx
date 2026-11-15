@@ -161,7 +161,7 @@ function MissionStage({ p, meta, words }: { p: MotionValue<number>; meta: Meta; 
 /* ---------------------------------------------------------------- 3. The noise test (dot map) */
 type RGB = [number, number, number];
 // Same hues as the tokens: --warming, --cooling, --false-alarm, and a dark neutral for "no trend found".
-const DIM: RGB = [40, 46, 60], UP: RGB = [255, 138, 61], DOWN: RGB = [74, 163, 255], LUCK: RGB = [232, 121, 249];
+const DIM: RGB = [44, 44, 42], UP: RGB = [255, 138, 61], DOWN: RGB = [74, 163, 255], LUCK: RGB = [232, 121, 249];
 const STAGES = [
   { at: 0.0, word: "Every place", title: "Here is every place on Earth", text: "Each dot stands for four of our 12,960 map squares (each about 200 km wide). For each one we have 46 years of NASA air-temperature data.", key: "cells", noun: "places" },
   { at: 0.22, word: "Simple", title: "Step 1 · The simple test", text: "Check each place on its own, the way most maps are made. Orange: warming. Blue: cooling.", key: "naive_sig", noun: "look like they're changing" },
@@ -332,7 +332,7 @@ function NoiseStage({ p, meta, grid }: { p: MotionValue<number>; meta: Meta; gri
             <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-warming" />warming</span>
             <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-cooling" />cooling</span>
             <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-false-alarm" />false alarm (shuffled data)</span>
-            <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-[#282e3c] ring-1 ring-white/20" />no trend found</span>
+            <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full bg-[#2c2c2a] ring-1 ring-white/20" />no trend found</span>
             <Link href="/globe" className="hud ulink text-ink sm:ml-auto">Explore it on the globe →</Link>
           </figcaption>
         </figure>
