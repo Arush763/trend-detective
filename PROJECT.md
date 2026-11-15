@@ -13,11 +13,10 @@ A website where anyone, with no statistics background, can investigate whether a
 
 - **Landing page:** a scroll-driven story, from the problem to a world dot map that steps through the tests, then four cases (three single places and the Case 04 comparison) and the four checks.
 - **Any place on Earth:** search for a country, state, island, city or coordinates. The app takes the place's outline from OpenStreetMap, averages the NASA squares inside it (about 110 km each; a place smaller than one square uses the square it sits in), and runs the same four checks in the browser. Its tests join the app's false-discovery family, so the strict test stays strict.
-- **Explore a place (step by step):** choose a kind of place (desert, rainforest, big city, polar…), then a place, then what to look at. The app suggests variables for each kind of place. Next you see the data, then one page for each of the four checks, then a plain-language verdict with a globe zoomed to that place.
-- **Ask a question:** type "Is New Jersey getting wetter?" and jump straight to that case. Plain keyword matching, no AI.
+- **Ask a question:** one sentence, "Is ___ getting ___?", with a dropdown in each blank. The place picker lists the 21 built-in regions and searches the whole world; the second blank lists what to look at (warmer, rainier, snowier, hazier…), suggested ones first for the built-in regions. Next you see the data, then one page for each of the four checks, then a plain-language verdict with a globe zoomed to that place.
 - **Same cause, opposite effects (Case 04):** rain fell over the Amazon (−0.32 mm/day per decade) and rose over the Himalaya & Tibet (+0.13), both passing the strict test, while both regions got warmer and their air holds more water vapor. Warmer air holds more water, but winds decide where it falls. Any two places can be compared side by side.
 - **Use this case:** copy a link, download the numbers as CSV, or copy a citation.
-- **Globe:** a 3D globe of every 2° × 2.5° square of the planet for 9 variables. Step through the simple test, the luck test (shuffled data) and the strict test. Click any square (or use "Jump to a place" from the keyboard) for its numbers and its own verdict, so the checks work anywhere on Earth, not only in the 21 regions.
+- **Globe:** the centrepiece. Every 2° × 2.5° square of the planet is a 3D column (height = size of the trend) for 9 variables. Step through the simple test, the luck test (false alarms from shuffled data rise in violet) and the strict test (those false alarms break into dust). Click any square, or fly to a region or demo case, for its numbers and its own verdict. For air temperature, a player steps through 1980–2025, colouring each square by that year's real anomaly. A flat map replaces the 3D view without WebGL or with reduced motion.
 - **How it works:** the method, a glossary that defines every term and number on the site, the limits, and the sources.
 - **Install it as an app, use it offline:** the site is a Progressive Web App. It installs on phones and computers ("Install app" in the menu, or "Add to Home Screen" on iPhone) and opens in its own window. After one visit, every page and every region's NASA data is saved on the device, so it works in a classroom with no Wi-Fi.
 - **Works for everyone:** phone layouts, keyboard navigation, screen-reader labels on charts and the globe, and reduced motion when the device asks for it.
@@ -86,7 +85,7 @@ Across the variables, the strict test removes the most for rain and snow (4,646 
 
 ## Run it
 
-See [README.md](README.md). The processed data is committed, so to run the site you only need `cd web && npm install && npm run dev`. To rebuild the data: `pip install -r pipeline/requirements.txt`, set `EARTHDATA_TOKEN`, then run `python pipeline/download_merra2.py`, `python pipeline/build.py`, `python pipeline/build_places.py` and `python pipeline/aeronet.py`.
+See [README.md](README.md). The processed data is committed, so to run the site you only need `cd web && npm install && npm run dev`. To rebuild the data: `pip install -r pipeline/requirements.txt`, set `EARTHDATA_TOKEN`, then run `python pipeline/download_merra2.py`, `python pipeline/build.py`, `python pipeline/build_places.py`, `python pipeline/build_anomalies.py` and `python pipeline/aeronet.py`.
 
 ## References
 
@@ -94,4 +93,4 @@ Gelaro et al. 2017 (J. Climate), MERRA-2 · Randles et al. 2017 (J. Climate), ME
 
 ## AI assistance
 
-Built with help from Claude (Anthropic) for code, design and writing; the authorship is recorded in the commit history. The app itself uses no AI: the "Ask a question" box is plain keyword matching, and every number comes from the NASA data and the statistics above.
+Built with help from Claude (Anthropic) for code, design and writing; the authorship is recorded in the commit history. The app itself uses no AI: the "Ask a question" sentence is filled from plain dropdowns, and every number comes from the NASA data and the statistics above.

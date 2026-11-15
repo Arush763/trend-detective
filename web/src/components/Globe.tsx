@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HudCallout } from "@/components/ui";
+import { flyTo } from "./globeFx";
 import type { Grid } from "@/lib/data";
 
 export type Mode = "naive" | "noise" | "real";
@@ -105,6 +106,9 @@ function paint(grid: Grid, mode: Mode, enso: boolean, coastP: Path2D | null) {
   return url;
 }
 
+/** The same picture as a flat map (equirectangular image URL): the readable fallback without WebGL or with reduced motion. */
+export const flatMap = paint;
+
 /** Nearest grid square to a clicked point. */
 export function cellAt(grid: Grid, lat: number[], lon: number[], p: { lat: number; lng: number }) {
   const near = (arr: number[], v: number, wrap = 0) => arr.reduce((b, x, i) => {
@@ -143,8 +147,10 @@ const cellLatLng = (grid: Grid, k: number) => {
  * Optional props: `hud` = mono label lines drawn with a leader line from the picked square (off by default);
  * `dissolveFromNoise` = on a Noise → Real change, the false-alarm squares dissolve into drifting particles (off by default).
  */
-export function Globe({ grid, mode, enso = false, spin = false, zoom = true, label, focus, box, outline, onPick, pick, hud, dissolveFromNoise = false }: {
+export function Globe({ grid, mode, enso = false, spin = false, zoom = true, fill = false, label, focus, box, outline, onPick, pick, hud, dissolveFromNoise = false }: {
   grid: Grid | null; mode: Mode; enso?: boolean; spin?: boolean; zoom?: boolean; label: string;
+  /** Fill the parent (full-bleed canvas) instead of a square. */
+  fill?: boolean;
   focus?: { lat: number; lng: number; altitude: number }; box?: number[];
   /** A place's real border as rings of [lon, lat] (GeoJSON order); drawn instead of `box`. */
   outline?: [number, number][][];
@@ -156,6 +162,7 @@ export function Globe({ grid, mode, enso = false, spin = false, zoom = true, lab
   const renderer = useRef<any>(null);
   const [G, setG] = useState<any>(null);
   const [size, setSize] = useState(0);
+  const [height, setHeight] = useState(0);
   const [coastP, setCoastP] = useState<Path2D | null | undefined>(undefined);
   const [spot, setSpot] = useState<{ x: number; y: number; vis: boolean } | null>(null);
   const prevMode = useRef<Mode>(mode);
@@ -167,7 +174,7 @@ export function Globe({ grid, mode, enso = false, spin = false, zoom = true, lab
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setSize(Math.round(e.contentRect.width)));
+    const ro = new ResizeObserver(([e]) => { setSize(Math.round(e.contentRect.width)); setHeight(Math.round(e.contentRect.height)); });
     ro.observe(el);
     // Stop rendering while the globe is scrolled out of view.
     const io = new IntersectionObserver(([e]) => {
@@ -179,7 +186,7 @@ export function Globe({ grid, mode, enso = false, spin = false, zoom = true, lab
   }, []);
   // Give the WebGL context back on unmount; browsers only allow a handful at once.
   useEffect(() => () => renderer.current?.forceContextLoss?.(), []);
-  useEffect(() => { if (focus && globe.current) globe.current.pointOfView(focus, 1200); }, [focus]);
+  useEffect(() => { if (focus && globe.current) return flyTo(globe.current, focus); }, [focus]);
   // Freeze the slow auto-rotate while the tab is hidden; also follow `spin` when it changes (the story globe stops to focus a place).
   useEffect(() => {
     const onVis = () => {
@@ -308,10 +315,10 @@ export function Globe({ grid, mode, enso = false, spin = false, zoom = true, lab
   })();
 
   return (
-    <div ref={wrap} className="relative aspect-square w-full" role="img" aria-label={label}>
+    <div ref={wrap} className={`relative w-full ${fill ? "h-full" : "aspect-square"}`} role="img" aria-label={label}>
       {(!G || !texture) && <div className="absolute inset-[6%] rounded-full bg-gradient-to-br from-night to-void motion-safe:animate-pulse" />}
       {G && texture && size > 0 && (
-        <G ref={globe} width={size} height={size} backgroundColor="rgba(0,0,0,0)"
+        <G ref={globe} width={size} height={fill ? height || size : size} backgroundColor="rgba(0,0,0,0)"
           globeImageUrl={texture} showAtmosphere atmosphereColor={ATMOSPHERE} atmosphereAltitude={0.16}
           pathsData={paths} pathPoints="pts" pathPointLat={ptLat} pathPointLng={ptLng}
           pathColor={pathCol} pathStroke={2} pathTransitionDuration={0}

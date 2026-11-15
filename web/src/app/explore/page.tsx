@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { DEMOS, NICE, TYPE_LABEL, VERDICT, cap, checks, fmt, get, parseQuestion, pfmt, headline, inPlace, placeName, signed, type Grid, type Meta, type Region } from "@/lib/data";
+import { DEMOS, NICE, TYPE_LABEL, VERDICT, cap, checks, fmt, get, pfmt, headline, inPlace, placeName, signed, type Grid, type Meta, type Region } from "@/lib/data";
 import { TrendChart } from "@/components/TrendChart";
 import { Badge, Brackets, Button, Card, Hud, SectionLabel, VerdictStamp } from "@/components/ui";
 import { Globe, GlobeScale, cellAt, trendToneCss, type Pick } from "@/components/Globe";
@@ -11,8 +11,14 @@ import { CellInfo } from "@/components/CellInfo";
 import { ShareTools } from "@/components/ShareTools";
 import { isCustomPlace, loadPlace, searchPlaces, type PlaceHit } from "@/lib/places";
 
-const STEPS = ["Kind of place", "Place", "What to look at", "The data", "Check 1", "Check 2", "Check 3", "Check 4", "Verdict"];
-const DATA = 3, VERDICT_STEP = 8;
+const STEPS = ["Question", "The data", "Check 1", "Check 2", "Check 3", "Check 4", "Verdict"];
+const STEP_KEYS = ["question", "data", "check-1", "check-2", "check-3", "check-4", "verdict"];
+const DATA = 1, VERDICT_STEP = 6;
+/** "Is ___ getting ___?": the everyday word for each measurement, in the order the dropdown lists them. */
+const GETTING: [string, string][] = [
+  ["T2M", "warmer"], ["PRECTOTCORR", "rainier"], ["TQV", "more humid"], ["SNOMAS", "snowier"], ["GWETROOT", "drier soil"],
+  ["RUNOFF", "more runoff"], ["EVAP", "more evaporation"], ["TOTEXTTAU", "hazier"], ["DUEXTTAU", "dustier"],
+];
 const page = { initial: { opacity: 0, x: 24 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -24 }, transition: { duration: 0.3 } };
 /** Water variables: wetter = navy, drier = ash. Everything else: rising = warming, falling = cooling. */
 const trendTone = trendToneCss; // one source of truth, shared with /compare (see Globe.tsx)
@@ -22,12 +28,12 @@ const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)"
 /** Snow "trends" in places that almost never have snow are just rounding noise, so we don't offer them. */
 const TRACE_SNOW = 0.5; // kg/m², long-term mean
 
-/** The case as written in the URL: ?type=&place=&v=&case=&step= */
+/** The case as written in the URL: ?place=&v=&case=&step=data. Old links used step numbers 0-8 with three picker steps first. */
 function readUrl() {
   const q = new URLSearchParams(window.location.search), g = (k: string) => q.get(k) ?? "";
-  const place = g("place"), v = g("v"), s = g("step"), n = Math.trunc(+s);
-  const step = s !== "" && Number.isFinite(n) ? Math.min(VERDICT_STEP, Math.max(0, n)) : place && v ? DATA : 0;
-  return { type: g("type"), place, v, caseId: g("case"), step };
+  const place = g("place"), v = g("v"), s = g("step"), n = Math.trunc(+s), named = STEP_KEYS.indexOf(s);
+  const step = named >= 0 ? named : s !== "" && Number.isFinite(n) ? Math.min(VERDICT_STEP, Math.max(0, n - 2)) : place && v ? DATA : 0;
+  return { place, v, caseId: g("case"), step };
 }
 
 export default function Explore() {
@@ -36,7 +42,6 @@ export default function Explore() {
   const [v, setV] = useState("");
   const [caseId, setCaseId] = useState("");
   const [step, setStep] = useState(0);
-  const [type, setType] = useState("");
   const [ready, setReady] = useState(false); // true once the URL has been read
   const [region, setRegion] = useState<Region>(null);
   const [globalR, setGlobalR] = useState<Region>(null);
@@ -69,11 +74,11 @@ export default function Explore() {
   useEffect(() => {
     const apply = () => {
       const u = readUrl();
-      setType(u.type); setPlaceId(u.place); setV(u.v); setCaseId(u.caseId); setStep(u.step);
+      setPlaceId(u.place); setV(u.v); setCaseId(u.caseId); setStep(u.step);
       lastStep.current = u.step;
       setReady(true);
     };
-    const reset = () => { setType(""); setPlaceId(""); setV(""); setCaseId(""); setStep(0); };
+    const reset = () => { setPlaceId(""); setV(""); setCaseId(""); setStep(0); };
     apply();
     window.addEventListener("popstate", apply);
     window.addEventListener("explore:reset", reset);
@@ -97,11 +102,10 @@ export default function Explore() {
   useEffect(() => {
     if (!ready) return;
     const q = new URLSearchParams();
-    if (type) q.set("type", type);
     if (placeId) q.set("place", placeId);
     if (v) q.set("v", v);
     if (caseId) q.set("case", caseId);
-    q.set("step", String(step));
+    q.set("step", STEP_KEYS[step]);
     const url = `/explore?${q}`;
     if (url !== window.location.pathname + window.location.search) {
       if (step !== lastStep.current) window.history.pushState(null, "", url);
@@ -109,7 +113,7 @@ export default function Explore() {
     }
     if (step !== lastStep.current) window.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" });
     lastStep.current = step;
-  }, [ready, type, placeId, v, caseId, step]);
+  }, [ready, placeId, v, caseId, step]);
 
   const info = region?.id === placeId ? region : null;
   const raw = info && v ? info.variables[v] ?? null : null;
@@ -124,13 +128,11 @@ export default function Explore() {
     ? [step === DATA ? "THE DATA" : step === VERDICT_STEP ? "VERDICT" : `CHECK ${step - DATA} OF 4`, info.name, NICE[v].short].join(" · ")
     : "";
   const demo = DEMOS.find((x) => x.id === caseId && x.place === placeId && x.v === v);
-  const canReach = (i: number) => i <= 0 || (i === 1 && !!type) || (i === 1 && !!placeId) || (i === 2 && !!info) || (i >= DATA && !!d);
+  const canReach = (i: number) => i <= 0 || (i >= DATA && !!d);
   const go = (i: number) => canReach(i) && setStep(i);
-  const startDemo = (x: (typeof DEMOS)[number]) => { setCaseId(x.id); setType(""); setPlaceId(x.place); setV(x.v); setStep(DATA); };
-  const ask = (place: string, k: string | null) => {
-    setCaseId(""); setType(""); setPlaceId(place); setV(k ?? ""); setStep(k ? DATA : 2);
-  };
-  const newCase = () => { setCaseId(""); setType(""); setPlaceId(""); setV(""); setStep(0); };
+  const startDemo = (x: (typeof DEMOS)[number]) => { setCaseId(x.id); setPlaceId(x.place); setV(x.v); setStep(DATA); };
+  const ask = (place: string, k: string) => { setCaseId(""); setPlaceId(place); setV(k); setStep(DATA); };
+  const newCase = () => { setCaseId(""); setPlaceId(""); setV(""); setStep(0); };
   // e.detail > 1 is the second click of a double-click: ignore it so it can't skip a page.
   const once = (f: () => void) => ((e: React.MouseEvent) => { if (e.detail <= 1) f(); }) as unknown as () => void; // Button types onClick as () => void, but it passes the event through
 
@@ -176,14 +178,8 @@ export default function Explore() {
       <HeaderSeen.Provider value={setHeaderOn}>
       <AnimatePresence mode="wait">
         <motion.div key={step} {...page}>
-          {step === 0 && <KindStep meta={meta} type={type} pick={(t) => {
-            setType(t); setCaseId("");
-            if (placeId && meta.regions.find((r: any) => r.id === placeId)?.type !== t) { setPlaceId(""); setV(""); }
-            setStep(1);
-          }} startDemo={startDemo} ask={ask} />}
-          {step === 1 && <PlaceStep meta={meta} type={type} placeId={placeId} pick={(id) => { setPlaceId(id); setV(""); setCaseId(""); setStep(2); }} />}
-          {(step === 2 || badVar) && (info ? <WhatStep meta={meta} info={info} v={v} pick={(k) => { setV(k); setCaseId(""); setStep(DATA); }}
-            note={badVar && v ? `We don't have a meaningful ${NICE[v]?.noun ?? "record"} record ${inPlace(info)}${v === "SNOMAS" ? " (it almost never snows there)" : ""}. Pick something else to look at.` : undefined} /> : <Loading />)}
+          {(step === 0 || badVar) && <QuestionStep meta={meta} placeId={placeId} placeName={info?.name} v={v} ask={ask} startDemo={startDemo}
+            note={badVar && v && info ? `We don't have a meaningful ${NICE[v]?.noun ?? "record"} record ${inPlace(info)}${v === "SNOMAS" ? " (it almost never snows there)" : ""}. Pick something else to look at.` : undefined} />}
           {step >= DATA && !badVar && (!info || !d ? <Loading /> : (
             step === DATA ? <DataStep meta={meta} info={info} v={v} d={d} />
               : step < VERDICT_STEP ? <CheckStep i={step - DATA - 1} meta={meta} info={info} v={v} d={d} />
@@ -205,7 +201,7 @@ export default function Explore() {
           )}
           {step === VERDICT_STEP && (
             <div className="flex flex-wrap gap-2">
-              <Button variant="glass" arrow={false} onClick={once(() => { setCaseId(""); setV(""); setStep(2); })}>Look at something else here</Button>
+              <Button variant="glass" arrow={false} onClick={once(() => { setCaseId(""); setV(""); setStep(0); })}>Look at something else here</Button>
               <Button onClick={once(newCase)}>Start a new case</Button>
             </div>
           )}
@@ -270,148 +266,122 @@ function Question({ eyebrow, title, sub }: { eyebrow: string; title: string; sub
   );
 }
 
-const CHOICE = "glass relative flex cursor-pointer flex-col gap-1.5 !rounded-[var(--radius-sm)] p-5 text-left text-[var(--ink)] transition-colors hover:border-[var(--signal)]/50 aria-pressed:border-[var(--signal)]/60";
-
-/** Any place on Earth: a country, state, island, city or "lat, lon". Searches on submit only (Nominatim's usage policy). */
-function PlaceSearch({ pick }: { pick: (id: string) => void }) {
+/** "Is [place ▾] getting [warmer ▾]?" The place blank opens a picker: typing filters the built-in places, Enter searches
+ * the whole world (OpenStreetMap Nominatim, only on request, as its usage policy asks). */
+function QuestionStep({ meta, placeId, placeName: knownName, v, ask, startDemo, note }: {
+  meta: Meta; placeId: string; placeName?: string; v: string; ask: (place: string, v: string) => void;
+  startDemo: (x: (typeof DEMOS)[number]) => void; note?: string;
+}) {
+  const builtIn = (id: string) => meta.regions.find((r: any) => r.id === id);
+  const [place, setPlace] = useState<{ id: string; name: string } | null>(placeId ? { id: placeId, name: knownName ?? builtIn(placeId)?.name ?? "this place" } : null);
+  const [k, setK] = useState(GETTING.some(([x]) => x === v) ? v : "T2M");
+  const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<PlaceHit[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const submit = async () => {
+  const blank = useRef<HTMLButtonElement>(null), panel = useRef<HTMLDivElement>(null), field = useRef<HTMLInputElement>(null);
+  // A searched place's name arrives after its data loads (e.g. from a shared link).
+  useEffect(() => { if (knownName) setPlace((p) => (p && p.id === placeId && p.name !== knownName ? { ...p, name: knownName } : p)); }, [knownName, placeId]);
+  useEffect(() => {
+    if (!open) return;
+    field.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); blank.current?.focus(); } };
+    const onDown = (e: PointerEvent) => { if (!panel.current?.contains(e.target as Node) && !blank.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+  }, [open]);
+
+  const choose = (id: string, name: string) => { setPlace({ id, name }); setOpen(false); setQ(""); setHits(null); setMsg(""); blank.current?.focus(); };
+  const search = async () => {
     if (!q.trim() || busy) return;
     setBusy(true); setMsg("");
     try {
       const h = await searchPlaces(q.trim());
       setHits(h);
-      if (!h.length) setMsg("No place found. Try a country, state, island or city, or coordinates like 64.1, -21.9.");
-    } catch {
-      setMsg("Place search isn't reachable right now. You can still use the places below.");
-    } finally { setBusy(false); }
+      if (!h.length) setMsg("Nothing found. Try a country, state, island or city, or coordinates like 64.1, -21.9.");
+    } catch { setMsg("Place search isn't reachable right now. The built-in places still work."); }
+    finally { setBusy(false); }
   };
-  return (
-    <form className="glass mb-4 flex flex-col gap-3 !rounded-[var(--radius-sm)] p-5" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-      <label htmlFor="anywhere"><SectionLabel>ANY PLACE ON EARTH</SectionLabel></label>
-      <div className="flex flex-wrap gap-2">
-        <input id="anywhere" value={q} onChange={(e) => setQ(e.target.value)} placeholder="A country, state, island, city, or lat, lon" autoComplete="off"
-          className="min-h-12 min-w-0 flex-[1_1_260px] rounded-full border border-[var(--hairline)] bg-[var(--ground-sunken)] px-5 text-[16px] text-[var(--ink)] placeholder:text-[var(--ink-dim)]" />
-        <Button type="submit" aria-busy={busy}>{busy ? "Searching" : "Find it"}</Button>
-      </div>
-      {hits && hits.length > 0 && (
-        <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Places found">
-          {hits.map((h) => (
-            <li key={h.id}>
-              <button type="button" onClick={() => pick(h.id)} className="rolllink w-full !normal-case">
-                <span className="flex min-w-0 flex-col items-start gap-0.5 py-2 text-left">
-                  <span className="nudge text-[16px] font-normal text-[var(--ink)]">{h.name}</span>
-                  <span className="max-w-full truncate font-mono text-[11px] uppercase text-[var(--ink-dim)]">{h.kind} · {h.detail}</span>
-                </span>
-                <span aria-hidden="true" className="rolllink-arrow">→</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <p role="status" className="text-[14px] text-[var(--ink-dim)]">{msg}</p>
-      <p className="text-[12px] text-[var(--ink-dim)]">Place search and outlines: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>, via Nominatim. NASA data is about 110 km per square, so small places use the square they sit in.</p>
-    </form>
-  );
-}
+  const ql = q.trim().toLowerCase();
+  const local = meta.regions.filter((r: any) => !ql || r.name.toLowerCase().includes(ql) || (TYPE_LABEL[r.type] ?? "").toLowerCase().includes(ql));
+  const suggested: string[] = place ? builtIn(place.id)?.suggested ?? [] : [];
+  const opts = [...GETTING].sort(([a], [b]) => +suggested.includes(b) - +suggested.includes(a));
+  const option = ([x, w]: [string, string]) => <option key={x} value={x} className="bg-[var(--ground-raised)] text-base">{w}</option>;
+  const row = "rolllink w-full !normal-case";
 
-function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | null) => void }) {
-  const [q, setQ] = useState("");
-  const [msg, setMsg] = useState("");
-  const examples = ["Is New Jersey getting wetter?", "Is the Arctic warming?", "Is Beijing's air getting hazier?"];
-  const submit = (text: string) => {
-    const { place, v } = parseQuestion(text, meta.regions);
-    if (place) { setMsg(""); ask(place, v); return; }
-    const some = meta.regions.filter((r: any) => r.id !== "global").slice(0, 6).map((r: any) => r.name).join(", ");
-    setMsg(v ? `We know you're asking about ${NICE[v].noun}, but not where. Name one of our ${meta.regions.length} built-in places, like ${some}, or find any place on Earth with the search above.`
-      : `That isn't one of our built-in places (like ${some}). Find any place on Earth with the search above, or add a word like warmer, wetter, snow or haze.`);
-  };
-  return (
-    <form className="glass mb-8 flex flex-col gap-3 !rounded-[var(--radius-sm)] p-5" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
-      <label htmlFor="ask"><SectionLabel>ASK A QUESTION</SectionLabel></label>
-      <div className="flex flex-wrap gap-2">
-        <input id="ask" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Is New Jersey getting wetter?" autoComplete="off"
-          className="min-h-12 min-w-0 flex-[1_1_260px] rounded-full border border-white/20 bg-[var(--void)]/60 px-5 text-[16px] text-[var(--ink)] placeholder:text-[var(--ink-dim)]" />
-        <Button type="submit" variant="glass">Investigate</Button>
-      </div>
-      <p className="text-[13px] text-[var(--ink-dim)]">Try:{" "}
-        {examples.map((x, i) => <span key={x}>{i > 0 && " · "}<button type="button" className="inline-flex min-h-11 items-center text-ink underline decoration-[var(--ink-faint)] underline-offset-4" onClick={() => { setQ(x); submit(x); }}>{x}</button></span>)}
-      </p>
-      <p role="status" className="text-[14px] text-[var(--ink-dim)]">{msg}</p>
-    </form>
-  );
-}
-
-function KindStep({ meta, type, pick, startDemo, ask }: { meta: Meta; type: string; pick: (t: string) => void; startDemo: (x: (typeof DEMOS)[number]) => void; ask: (place: string, v: string | null) => void }) {
-  const types = [...new Set<string>(meta.regions.map((r: any) => r.type))];
   return (
     <section>
-      <PlaceSearch pick={(id) => ask(id, null)} />
-      <AskBox meta={meta} ask={ask} />
-      <Question eyebrow="Or step by step · Question 1" title="What kind of place do you want to investigate?" sub="Different places change in different ways. We'll suggest what to look at for each kind." />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {types.map((t) => {
-          const rs = meta.regions.filter((r: any) => r.type === t);
-          return (
-            <button key={t} type="button" onClick={() => pick(t)} aria-pressed={t === type} className={`min-h-[92px] ${CHOICE}`}>
-              {t === type && <Brackets layoutId="kind-pick" />}
-              <Hud className="text-[var(--ink-dim)]">{rs.length} {rs.length === 1 ? "PLACE" : "PLACES"}</Hud>
-              <span className="text-lg text-[var(--ink)]">{TYPE_LABEL[t] ?? t}</span>
-              <span className="text-sm text-[var(--ink-dim)]">{rs.map((r: any) => r.name).join(" · ")}</span>
-            </button>
-          );
-        })}
-      </div>
-      <p className="mt-6 text-[15px] text-[var(--ink-dim)]">Not sure? Try a demo case:{" "}
+      <Question eyebrow="Ask a question" title="What do you want to find out?" />
+      {note && <p role="status" className="mb-6 !rounded-[var(--radius-sm)] glass px-5 py-3 text-[15px] text-[var(--ink)]">{note}</p>}
+      <form onSubmit={(e) => { e.preventDefault(); if (place) ask(place.id, k); else setOpen(true); }} className="flex flex-col gap-6">
+        <p className="font-display text-[clamp(30px,4.6vw,56px)] leading-[1.25] tracking-[-0.02em]">
+          Is{" "}
+          <button ref={blank} type="button" aria-haspopup="dialog" aria-expanded={open} aria-controls="place-picker"
+            aria-label={place ? `Place: ${place.name}. Change it` : "Choose a place"} onClick={() => setOpen((o) => !o)}
+            className="inline border-b-2 border-[var(--ink-faint)] px-1 text-left text-[var(--ink)] transition-colors hover:border-[var(--ink)]">
+            {place ? place.name : <span className="text-[var(--ink-dim)]">______</span>}
+            <span aria-hidden="true" className="ml-2 align-middle text-[0.5em] text-[var(--ink-dim)]">▾</span>
+          </button>{" "}
+          getting{" "}
+          <span className="relative inline-block">
+            <select aria-label="What to look at" value={k} onChange={(e) => setK(e.target.value)}
+              className="appearance-none border-b-2 border-[var(--ink-faint)] bg-transparent py-0 pl-1 pr-[1.1em] [field-sizing:content] text-[var(--ink)] transition-colors hover:border-[var(--ink)]">
+              {suggested.length > 0 ? (
+                <>
+                  <optgroup label="Suggested here">{opts.filter(([x]) => suggested.includes(x)).map(option)}</optgroup>
+                  <optgroup label="Everything else">{opts.filter(([x]) => !suggested.includes(x)).map(option)}</optgroup>
+                </>
+              ) : opts.map(option)}
+            </select>
+            <span aria-hidden="true" className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-[0.5em] text-[var(--ink-dim)]">▾</span>
+          </span>?
+        </p>
+
+        {open && (
+          <div ref={panel} id="place-picker" role="dialog" aria-label="Choose a place" className="glass flex max-w-[640px] flex-col gap-3 p-4">
+            <input ref={field} value={q} onChange={(e) => { setQ(e.target.value); setHits(null); setMsg(""); }} autoComplete="off"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); search(); } }}
+              placeholder="Type a place, then Enter to search the world" aria-label="Search for a place"
+              className="min-h-12 rounded-full border border-[var(--hairline)] bg-[var(--ground-sunken)] px-5 text-[16px] text-[var(--ink)] placeholder:text-[var(--ink-dim)]" />
+            <ul className="m-0 flex max-h-[min(50vh,420px)] list-none flex-col gap-0.5 overflow-y-auto p-0" aria-label="Places">
+              {ql && !hits && (
+                <li><button type="button" onClick={search} className={row}>
+                  <span className="nudge py-2 text-left text-[15px]">{busy ? "Searching…" : <>Search the whole world for &ldquo;{q.trim()}&rdquo;</>}</span>
+                  <span aria-hidden="true" className="rolllink-arrow">↵</span>
+                </button></li>
+              )}
+              {hits?.map((h) => (
+                <li key={h.id}><button type="button" onClick={() => choose(h.id, h.name)} className={row}>
+                  <span className="flex min-w-0 flex-col items-start gap-0.5 py-2 text-left">
+                    <span className="nudge text-[16px]">{h.name}</span>
+                    <span className="max-w-full truncate font-mono text-[11px] uppercase text-[var(--ink-dim)]">{h.kind} · {h.detail}</span>
+                  </span>
+                  <span aria-hidden="true" className="rolllink-arrow">→</span>
+                </button></li>
+              ))}
+              {local.map((r: any) => (
+                <li key={r.id}><button type="button" onClick={() => choose(r.id, r.name)} className={row}>
+                  <span className="nudge py-2 text-left text-[16px]">{r.name}</span>
+                  <span className="hud shrink-0">{TYPE_LABEL[r.type] ?? r.type}</span>
+                </button></li>
+              ))}
+            </ul>
+            {msg && <p role="status" className="text-[14px] text-[var(--ink-dim)]">{msg}</p>}
+            <p className="text-[12px] text-[var(--ink-dim)]">World search and outlines: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>, via Nominatim. NASA squares are about 110 km across, so small places use the square they sit in.</p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-4">
+          <Button type="submit">Investigate</Button>
+          <span className="max-w-[60ch] text-[15px] text-[var(--ink-dim)]">{meta.variables[k].definition}</span>
+        </div>
+      </form>
+      <p className="mt-10 text-[15px] text-[var(--ink-dim)]">Or try a demo case:{" "}
         {DEMOS.map((x, i) => <span key={x.id}>{i > 0 && " · "}<button type="button" onClick={() => startDemo(x)} className="inline-flex min-h-11 cursor-pointer items-center text-ink underline decoration-[var(--ink-faint)] underline-offset-4">{x.title}</button></span>)}
         {" · "}<Link href="/compare" className="inline-flex min-h-11 items-center">Same cause, opposite effects: Amazon vs Himalaya</Link>
       </p>
-    </section>
-  );
-}
-
-function PlaceStep({ meta, type, placeId, pick }: { meta: Meta; type: string; placeId: string; pick: (id: string) => void }) {
-  const rs = meta.regions.filter((r: any) => !type || r.type === type);
-  return (
-    <section>
-      <Question eyebrow="Question 2" title="Which place?" sub={type ? `${TYPE_LABEL[type] ?? type} places in our data.` : "Every place in our data."} />
-      <div className="grid gap-3 sm:grid-cols-2">
-        {rs.map((r: any) => (
-          <button key={r.id} type="button" onClick={() => pick(r.id)} aria-pressed={r.id === placeId} className={CHOICE}>
-            {r.id === placeId && <Brackets layoutId="place-pick" />}
-            <Hud className="text-[var(--ink-dim)]">{TYPE_LABEL[r.type] ?? r.type}</Hud>
-            <span className="text-lg text-[var(--ink)]">{r.name}</span>
-            <span className="text-[15px] leading-normal text-[var(--ink-dim)]">{r.blurb}</span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function WhatStep({ meta, info, v, pick, note }: { meta: Meta; info: Region; v: string; pick: (k: string) => void; note?: string }) {
-  const suggested: string[] = meta.regions.find((r: any) => r.id === info.id)?.suggested ?? [];
-  const order = [...info.screener]
-    .filter((k: string) => !(k === "SNOMAS" && info.variables[k].mean < TRACE_SNOW))
-    .sort((a: string, b: string) => +suggested.includes(b) - +suggested.includes(a));
-  return (
-    <section>
-      <Question eyebrow={`Question 3 · ${info.name}`} title={`What do you want to look at ${inPlace(info)}?`}
-        sub={info.custom ? `${info.blurb} Sorted by how clearly each one is changing.` : `${info.blurb} The ones marked ★ matter most for a ${(TYPE_LABEL[info.type] ?? info.type).toLowerCase()} place.`} />
-      {note && <p role="status" className="mb-4 !rounded-2xl glass px-5 py-3 text-[15px] text-[var(--ink)]">{note}</p>}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {order.map((k: string) => (
-          <button key={k} type="button" onClick={() => pick(k)} aria-pressed={k === v} className={CHOICE}>
-            {k === v && <Brackets layoutId="what-pick" />}
-            <Hud className="text-[var(--ink-dim)]">{k} · {NICE[k].units}</Hud>
-            <span className="text-lg text-[var(--ink)]">{NICE[k].short}{suggested.includes(k) && <span className="ml-2 rounded-full bg-accent px-2 py-0.5 align-middle font-mono text-[10px] uppercase text-accent-ink">Suggested</span>}</span>
-            <span className="text-[15px] leading-normal text-[var(--ink-dim)]">{meta.variables[k].definition}</span>
-          </button>
-        ))}
-      </div>
     </section>
   );
 }
