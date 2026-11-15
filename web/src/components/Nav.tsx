@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { InstallButton } from "./PWA";
+import { Button, RollText } from "./ui";
 
 const LINKS = [
   { href: "/#cases", label: "Demo cases", match: "" },
@@ -11,53 +13,69 @@ const LINKS = [
   { href: "/how", label: "How it works", match: "/how" },
 ];
 
+/** Wordmark top left, floating glass pill top right (OPEN A CASE + MENU). No full-width bar. */
 export function Nav() {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+  const root = useRef<HTMLElement>(null);
+  const menuBtn = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const onExplore = path.startsWith("/explore");
-  const links = (cls: string) => LINKS.map((l) => {
-    const on = !!l.match && path.startsWith(l.match);
-    return (
-      <Link key={l.href} href={l.href} aria-current={on ? "page" : undefined}
-        onClick={() => { setOpen(false); if (l.href === "/explore" && onExplore) window.dispatchEvent(new Event("explore:reset")); }}
-        className={`${cls} rounded-full px-3 text-[12px] uppercase tracking-[0.12em] no-underline transition-colors ${on ? "bg-white/[0.08] text-[var(--text)]" : "text-[var(--soft)] hover:text-[var(--text)]"}`}>
-        {l.label}
-      </Link>
-    );
-  });
+
+  // Close on Escape (focus returns to the button) and on outside click.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); menuBtn.current?.focus(); } };
+    const onDown = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+  }, [open]);
+
+  // Move focus into the panel when it opens.
+  useEffect(() => { if (open) panel.current?.querySelector<HTMLElement>("a, button")?.focus(); }, [open]);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#070b1a]/85 backdrop-blur-md">
-      <nav aria-label="Main" className="relative mx-auto flex max-w-[1200px] items-center justify-between gap-3 px-4 py-2.5 sm:px-8">
-        <Link href="/" className="flex min-h-11 items-center gap-2.5 font-display text-[19px] font-normal tracking-tight text-[var(--text)] no-underline">
-          <svg width="26" height="26" viewBox="0 0 28 28" aria-hidden="true">
-            <circle cx="14" cy="14" r="11" fill="none" stroke="#5eead4" strokeWidth="2" />
-            <path d="M5 17 L10 12 L14 15 L19 8 L23 11" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          trend detective
-        </Link>
-        <div className="flex items-center gap-1">
-          <div className="hidden items-center gap-1 lg:flex">{links("inline-flex min-h-11 items-center")}</div>
-          <InstallButton className="ml-1 hidden sm:inline-flex" />
-          {!onExplore && (
-            <Link href="/explore" className="ml-2 hidden min-h-11 items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#04211d] no-underline hover:bg-[#99f6e4] hover:text-[#04211d] sm:inline-flex">
-              Open a case <span aria-hidden="true">→</span>
-            </Link>
-          )}
-          <button type="button" aria-expanded={open} aria-controls="nav-menu" aria-label={open ? "Close menu" : "Open menu"} onClick={() => setOpen(!open)}
-            className="ml-1 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 text-[var(--text)] lg:hidden">
-            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              {open ? <path d="M4 4 L14 14 M14 4 L4 14" /> : <path d="M2 5 H16 M2 9 H16 M2 13 H16" />}
-            </svg>
-          </button>
-        </div>
+    <nav ref={root} aria-label="Main">
+      <Link href="/" aria-label="Trend Detective, home"
+        className="glass-strong fixed left-4 top-4 z-50 flex min-h-11 items-center gap-2.5 !rounded-full pl-2.5 pr-2.5 font-display text-[17px] tracking-[-0.03em] text-ink no-underline hover:text-ink sm:pr-4">
+        <svg width="24" height="24" viewBox="0 0 28 28" aria-hidden="true">
+          <circle cx="14" cy="14" r="11" fill="none" stroke="var(--signal)" strokeWidth="2" />
+          <path d="M5 17 L10 12 L14 15 L19 8 L23 11" fill="none" stroke="var(--warming)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="hidden sm:inline">trend detective</span>
+      </Link>
+
+      <div className="glass-strong fixed right-4 top-4 z-50 flex items-center gap-1 !rounded-full p-1">
+        {!onExplore && <Button href="/explore" className="!px-4">Open a case</Button>}
+        <button ref={menuBtn} type="button" aria-expanded={open} aria-controls="nav-menu" onClick={() => setOpen(!open)}
+          className="hud inline-flex min-h-11 items-center rounded-full px-4 text-ink hover:bg-white/10">
+          <RollText>{open ? "Close" : "Menu"}</RollText>
+        </button>
+      </div>
+
+      <AnimatePresence>
         {open && (
-          <div id="nav-menu" className="absolute right-4 top-full mt-2 flex w-60 flex-col gap-1 rounded-[20px] border border-white/10 bg-[#0f1730] p-2 shadow-2xl sm:right-8 lg:hidden">
-            {links("flex min-h-11 items-center")}
-            <InstallButton className="mt-1 justify-center sm:hidden" />
-            {!onExplore && <Link href="/explore" onClick={() => setOpen(false)} className="btn btn-primary mt-1 justify-center text-[14px]">Open a case →</Link>}
-          </div>
+          <motion.div ref={panel} id="nav-menu"
+            initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="glass-strong fixed right-4 top-[72px] z-50 flex w-[min(20rem,calc(100vw-2rem))] origin-top-right flex-col gap-1 p-2">
+            <p className="hud px-3 pb-1 pt-2"><span aria-hidden="true" className="mr-2 text-ink-faint">{"//////"}</span>Menu</p>
+            {LINKS.map((l) => {
+              const on = !!l.match && path.startsWith(l.match);
+              return (
+                <Link key={l.href} href={l.href} aria-current={on ? "page" : undefined}
+                  onClick={() => { setOpen(false); if (l.href === "/explore" && onExplore) window.dispatchEvent(new Event("explore:reset")); }}
+                  className={`hud flex min-h-11 items-center justify-between rounded-xl px-3 no-underline transition-colors ${on ? "bg-white/[0.08] text-signal hover:text-signal" : "text-ink-dim hover:bg-white/[0.06] hover:text-ink"}`}>
+                  <RollText>{l.label}</RollText>
+                  <span aria-hidden="true" className="text-ink-faint">{on ? "●" : "→"}</span>
+                </Link>
+              );
+            })}
+            <InstallButton className="mt-1 justify-center" />
+          </motion.div>
         )}
-      </nav>
-    </header>
+      </AnimatePresence>
+    </nav>
   );
 }
