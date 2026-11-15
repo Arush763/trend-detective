@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { DEMOS, NICE, VERDICT, fmt, get, signed, type Grid, type Meta } from "@/lib/data";
 import { GlobeScale, cellAt, coast, flatMap, type Mode, type Pick } from "@/components/Globe";
-import { ColumnGlobe, type Target } from "@/components/ColumnGlobe";
+import { ColumnGlobe, type Target, type YearView } from "@/components/ColumnGlobe";
 import { CellInfo, hudLines } from "@/components/CellInfo";
 import { Brackets, SectionLabel } from "@/components/ui";
 import { reducedMotion } from "@/components/globeFx";
@@ -44,6 +44,22 @@ let flatCache: boolean | null = null;
 const wantFlat = () => (flatCache ??= (() => { const cv = document.createElement("canvas"); return !(cv.getContext("webgl2") || cv.getContext("webgl")) || reducedMotion(); })());
 const noSubscribe = () => () => {};
 
+/** Colour key for the year scrubber. */
+function YearKey({ year }: { year: number }) {
+  return (
+    <div className="flex w-full flex-col gap-2 text-[13px] text-ink-dim">
+      <div className="hud flex items-center gap-3">
+        <span className="w-16 text-right">cooler</span>
+        <div className="h-3 flex-1 rounded-full" aria-hidden="true" style={{ background: "linear-gradient(90deg, var(--cooling), var(--ground-raised), var(--warming))" }} />
+        <span className="w-16">warmer</span>
+      </div>
+      <p className="text-center text-[12px]"><span className="num">{year}</span> air temperature compared with each square&apos;s own 1980–2025 average. Taller = further from normal (3 °C or more is full height). Real yearly NASA values, nothing smoothed.</p>
+    </div>
+  );
+}
+
+type Anom = { a: Int8Array; years: number[]; step: number; nodata: number; nCells: number };
+
 /** Readable 2D map of the same step, for devices without WebGL or visitors who ask for reduced motion. Click a square for its numbers. */
 function FlatFallback({ grid, mode, enso, onPick }: { grid: Grid | null; mode: Mode; enso: boolean; onPick: (p: { lat: number; lng: number }) => void }) {
   const [c, setC] = useState<Path2D | null | undefined>(undefined);
@@ -71,6 +87,9 @@ export default function GlobePage() {
   const [place, setPlace] = useState<Target | null>(null);
   const flat = useSyncExternalStore(noSubscribe, wantFlat, () => false);
   const [err, setErr] = useState("");
+  const [anom, setAnom] = useState<Anom | null>(null);
+  const [yearIdx, setYearIdx] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
     get("meta.json").then((m) => {
@@ -87,6 +106,30 @@ export default function GlobePage() {
   }, [v]);
 
   const g = grid?.var === v ? grid : null; // the numbers wait for the new variable; the globe keeps the old picture meanwhile
+  // Year scrubber (air temperature only): one year of real anomalies at a time.
+  const yearOn = v === "T2M" && yearIdx != null && !!anom;
+  const year: YearView | null = useMemo(() => (yearOn && anom ? { a: anom.a, idx: yearIdx!, step: anom.step, nodata: anom.nodata, nCells: anom.nCells } : null), [yearOn, anom, yearIdx]);
+  useEffect(() => {
+    if (!playing || !anom) return;
+    const id = window.setInterval(() => setYearIdx((i) => {
+      const nx = (i ?? -1) + 1;
+      if (nx >= anom.years.length - 1) setPlaying(false);
+      return Math.min(nx, anom.years.length - 1);
+    }), 450);
+    return () => window.clearInterval(id);
+  }, [playing, anom]);
+  const startYears = async () => {
+    let A = anom;
+    if (!A) {
+      try {
+        const [info, buf] = await Promise.all([get("grid/T2M_anom.json"), fetch("/data/grid/T2M_anom.bin").then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })]);
+        A = { a: new Int8Array(buf), years: info.years, step: info.step, nodata: info.nodata, nCells: info.shape[0] * info.shape[1] };
+        setAnom(A);
+      } catch (e) { setErr(`the yearly data (${e})`); return; }
+    }
+    setYearIdx(0); setPlaying(true);
+  };
+  const stopYears = () => { setPlaying(false); setYearIdx(null); };
   // A clicked square's own numbers, or a region / demo case picked from the menu.
   const target: Target | null = useMemo(() => {
     if (pick) {
@@ -100,7 +143,7 @@ export default function GlobePage() {
   if (!meta) return <p className="text-ink-dim" role="status">Loading NASA data…</p>;
   const s = meta.grid_summary[v];
   const count = (m: Mode) => ({ naive: s.naive_sig, noise: s.noise_sig, real: enso ? s.enso_real_sig : s.real_sig }[m]);
-  const choose = (k: string) => { setV(k); window.history.replaceState(null, "", `/globe?v=${k}`); };
+  const choose = (k: string) => { if (k !== "T2M") stopYears(); setV(k); window.history.replaceState(null, "", `/globe?v=${k}`); };
   const pickCell = (p: { lat: number; lng: number }) => { if (g) { setPlace(null); setPick(cellAt(g, meta.grid.lat, meta.grid.lon, p)); } };
 
   // A region or demo case from the menu: fly there and label it with that place's own trend and q.
@@ -128,7 +171,7 @@ export default function GlobePage() {
       <section className="bleed relative h-[100svh] min-h-[560px] overflow-hidden" aria-label="The globe">
         {flat
           ? <FlatFallback grid={g} mode={mode} enso={enso} onPick={pickCell} />
-          : <ColumnGlobe grid={g} lat={meta.grid.lat} lon={meta.grid.lon} mode={mode} enso={enso} target={target} onPick={pickCell}
+          : <ColumnGlobe grid={g} lat={meta.grid.lat} lon={meta.grid.lon} mode={mode} enso={enso} year={year} target={target} onPick={pickCell}
               label={`Globe of ${NICE[v].short} trends as columns: ${active.step}. ${n0(count(mode))} of ${n0(s.cells)} places marked. Click a square, or use "Fly to", for its numbers.`} />}
 
         {/* Top: what to map, and where to fly */}
@@ -163,11 +206,11 @@ export default function GlobePage() {
             {STEPS.map((st) => {
               const on = st.mode === mode;
               return (
-                <button key={st.mode} type="button" aria-pressed={on} aria-describedby={`desc-${st.mode}`} onClick={() => setMode(st.mode)}
+                <button key={st.mode} type="button" aria-pressed={on && !yearOn} aria-describedby={`desc-${st.mode}`} onClick={() => { stopYears(); setMode(st.mode); }}
                   className="nav-glass relative flex cursor-pointer flex-col gap-1 rounded-[var(--radius-sm)] px-3 py-2.5 text-left text-ink transition-colors sm:gap-1.5 sm:px-4 sm:py-3"
-                  style={{ borderColor: on ? st.color : undefined }}>
-                  {on && <Brackets layoutId="globe-steps" className="!-inset-0.5" />}
-                  <span className="hud !text-[10px] sm:!text-[12px]" style={{ color: on ? st.color : "var(--ink-dim)" }}><span className="sm:hidden">{st.short}</span><span className="hidden sm:inline">{st.step}</span></span>
+                  style={{ borderColor: on && !yearOn ? st.color : undefined }}>
+                  {on && !yearOn && <Brackets layoutId="globe-steps" className="!-inset-0.5" />}
+                  <span className="hud !text-[10px] sm:!text-[12px]" style={{ color: on && !yearOn ? st.color : "var(--ink-dim)" }}><span className="sm:hidden">{st.short}</span><span className="hidden sm:inline">{st.step}</span></span>
                   <span className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
                     <span className="num font-mono text-[20px] leading-none sm:text-[28px]" style={{ color: st.color }}><RollCount value={count(st.mode)} run={on} /></span>
                     <span className="hidden text-[13px] text-ink-dim sm:inline">{st.noun}</span>
@@ -184,16 +227,34 @@ export default function GlobePage() {
           </label>
         </div>
 
+        {/* Bottom centre (above the steps on phones): play the record year by year. Air temperature only. */}
+        {!flat && v === "T2M" && (
+          <div className="nav-glass absolute inset-x-4 bottom-[132px] z-10 flex items-center gap-3 rounded-full px-3 py-1.5 sm:bottom-6 sm:left-[408px] sm:right-auto sm:w-[min(440px,calc(100vw-440px))] lg:right-[460px] lg:w-auto">
+            {yearIdx == null || !anom ? (
+              <button type="button" onClick={startYears} className="hud flex min-h-11 w-full items-center justify-center gap-2 !text-ink">▶ Play the years 1980–2025</button>
+            ) : (
+              <>
+                <button type="button" onClick={() => { if (yearIdx >= anom.years.length - 1) setYearIdx(0); setPlaying((p) => !p); }} aria-label={playing ? "Pause" : "Play"}
+                  className="hud flex h-11 w-11 shrink-0 items-center justify-center rounded-full !text-ink">{playing ? "❚❚" : "▶"}</button>
+                <input type="range" min={0} max={anom.years.length - 1} value={yearIdx} aria-label="Year" aria-valuetext={String(anom.years[yearIdx])}
+                  onChange={(e) => { setPlaying(false); setYearIdx(+e.target.value); }} className="min-w-0 flex-1 accent-[var(--ink)]" />
+                <span className="num w-12 shrink-0 text-[16px] text-ink">{anom.years[yearIdx]}</span>
+                <button type="button" onClick={stopYears} aria-label="Back to the trends" className="hud flex h-11 shrink-0 items-center px-2 !text-ink-dim hover:!text-ink">✕</button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Bottom right: the colour key (below the globe on phones) */}
         {!flat && (
           <div className="nav-glass absolute bottom-6 right-6 z-10 hidden w-[420px] rounded-[var(--radius-sm)] p-4 lg:block">
-            <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />
+            {yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}
           </div>
         )}
       </section>
 
       <div className="flex flex-col gap-6">
-        <div className={flat ? "" : "lg:hidden"}><GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} /></div>
+        <div className={flat ? "" : "lg:hidden"}>{yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}</div>
         <p className="hud text-ink-dim">Drag to spin · pinch or scroll to zoom · tap or click a square · each column is one square, its height the size of the trend</p>
         <CellInfo meta={meta} grid={g} v={v} pick={pick} mode={mode} enso={enso} onClose={() => setPick(null)} />
         <AnimatePresence mode="wait">

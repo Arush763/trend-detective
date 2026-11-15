@@ -20,7 +20,7 @@ then shows which trends survive the checks that luck rarely passes.
 5. **Same cause, opposite effects (`/compare`).** The Amazon got less rain and the Himalaya & Tibet more, while both got warmer and moister; compare any two places side by side.
 6. **Checked against the ground.** The Beijing haze trend is overlaid with NASA AERONET sun-photometer observations (`pipeline/aeronet.py`).
 7. **Use this case.** Copy a link, download the numbers as CSV, or copy a citation.
-8. **Map with a 3-way toggle.** Every 2° × 2.5° grid cell: naive p < 0.05, then the same test on shuffled data (pure noise still "finds" trends in ~5% of cells), then the real signal after Hamed-Rao and Benjamini-Hochberg corrections.
+8. **The globe (`/globe`).** Every 2° × 2.5° grid cell is a 3D column, its height the size of the trend. Step 1 raises the cells that pass naive p < 0.05; step 2 dims them and raises the false alarms found in shuffled data (~5% of cells); step 3 breaks those false alarms into dust and keeps the cells that survive Hamed-Rao and Benjamini-Hochberg. Click a square, or fly to a region or demo case, for its numbers. For air temperature, play the record year by year (1980–2025). Without WebGL or with reduced motion, a flat map shows the same steps.
 
 ## Data
 
@@ -45,6 +45,7 @@ python pipeline/download_merra2.py --test   # check one month
 python pipeline/download_merra2.py          # ~2,200 files, ~2.3 GB, resumable
 python pipeline/build.py                    # writes data/processed (~10 min)
 python pipeline/build_places.py             # yearly values for every 1° x 1.25° square, for "any place" (~12 min)
+python pipeline/build_anomalies.py          # yearly air-temperature anomalies per map square, for the globe's year player (~3 min)
 python pipeline/aeronet.py                  # Beijing ground-station check (no login needed)
 python pipeline/test_stats.py               # checks our statistics against pymannkendall
 cd web && node scripts/check-stats.ts       # checks the browser port of the statistics against stats.py

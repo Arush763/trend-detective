@@ -22,11 +22,11 @@ export type Target = { key: string; lat: number; lng: number; altitude?: number;
 
 const COLUMN_VS = `
 attribute vec3 aDir; attribute vec2 aWid; attribute float aDelay; attribute float aH0; attribute float aH1; attribute vec3 aC0; attribute vec3 aC1;
-uniform float uT;
+uniform float uT; uniform float uS;
 varying vec3 vC; varying float vL;
 float ease(float x) { return x < 0.5 ? 4.0 * x * x * x : 1.0 - pow(-2.0 * x + 2.0, 3.0) / 2.0; }
 void main() {
-  float e = ease(clamp((uT - aDelay * ${STAGGER.toFixed(2)}) / ${(1 - STAGGER).toFixed(2)}, 0.0, 1.0));
+  float e = ease(clamp((uT - aDelay * uS) / (1.0 - uS), 0.0, 1.0));
   float h = mix(aH0, aH1, e);
   if (h < 0.05) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); vC = vec3(0.0); vL = 0.0; return; }
   vec3 up = aDir;
@@ -61,7 +61,23 @@ const baseTexture = () => (baseTex ??= coast().then((p) => {
   return c.toDataURL("image/jpeg", 0.9);
 }));
 
-type Cols = { mesh: any; cells: number[]; h0: Float32Array; h1: Float32Array; c0: Float32Array; c1: Float32Array; delay: Float32Array; t0: number };
+type Cols = { mesh: any; cells: number[]; h0: Float32Array; h1: Float32Array; c0: Float32Array; c1: Float32Array; delay: Float32Array; t0: number; ms: number; s: number };
+/** One year of the T2M anomaly record (°C vs each square's own 1980–2025 mean), for the year scrubber. */
+export type YearView = { a: Int8Array; idx: number; step: number; nodata: number; nCells: number };
+const YEAR_MS = 280;
+
+/** Height and colour of every column for one year: light = warmer than that square's average, navy = cooler. */
+function yearTargets(y: YearView, cells: number[]) {
+  const n = cells.length, h = new Float32Array(n), c = new Float32Array(n * 3);
+  cells.forEach((k, i) => {
+    const q = y.a[y.idx * y.nCells + k];
+    if (q === y.nodata) return;
+    const an = q * y.step, m = Math.min(1, Math.abs(an) / 3);
+    h[i] = H_MIN + (H_MAX - H_MIN) * m;
+    c.set((an >= 0 ? WARM : COOL).map((x) => x * (0.35 + 0.65 * m)), i * 3);
+  });
+  return { h, c };
+}
 
 /** Target height and colour of every column for a step. */
 function targets(grid: Grid, cells: number[], mode: Mode, enso: boolean) {
@@ -85,8 +101,8 @@ function targets(grid: Grid, cells: number[], mode: Mode, enso: boolean) {
 const ringCol = () => (t: number) => `rgba(236,235,232,${1 - t})`;
 const easeIO = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 
-export function ColumnGlobe({ grid, lat, lon, mode, enso, target, onPick, label }: {
-  grid: Grid | null; lat: number[]; lon: number[]; mode: Mode; enso: boolean; target: Target | null;
+export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, onPick, label }: {
+  grid: Grid | null; lat: number[]; lon: number[]; mode: Mode; enso: boolean; year?: YearView | null; target: Target | null;
   onPick: (p: { lat: number; lng: number }) => void; label: string;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -98,8 +114,8 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, target, onPick, label 
   sizeRef.current = size;
   const [ready, setReady] = useState(false);
   const cols = useRef<Cols | null>(null);
-  const uT = useRef({ value: 1 });
-  const prev = useRef<{ mode: Mode; enso: boolean; v: string } | null>(null);
+  const uT = useRef({ value: 1 }), uS = useRef({ value: STAGGER });
+  const prev = useRef<{ mode: Mode; enso: boolean; v: string; year: number | null } | null>(null);
   const targetRef = useRef<Target | null>(target);
   const spin = useRef<{ apply: () => void; cleanup: () => void } | null>(null);
   const [arrived, setArrived] = useState<string | null>(null);
@@ -122,11 +138,11 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, target, onPick, label 
     const g = globe.current;
     if (!ready || !g || !grid) return;
     const scene = g.scene();
-    const key = { mode, enso, v: grid.var };
+    const key = { mode, enso, v: grid.var, year: year ? year.idx : null };
     let c = cols.current;
     const now = performance.now();
     // Where every column is right now (an interrupted rise continues from where it was).
-    const progress = (i: number, cc: Cols) => easeIO(Math.min(1, Math.max(0, (Math.min(1, (now - cc.t0) / RISE_MS) - cc.delay[i] * STAGGER) / (1 - STAGGER))));
+    const progress = (i: number, cc: Cols) => easeIO(Math.min(1, Math.max(0, (Math.min(1, (now - cc.t0) / cc.ms) - cc.delay[i] * cc.s) / (1 - cc.s))));
     if (!c || prev.current?.v !== grid.var) {
       if (c) { scene.remove(c.mesh); c.mesh.geometry.dispose(); c.mesh.material.dispose(); }
       const cells: number[] = [];
@@ -143,9 +159,9 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, target, onPick, label 
       const at = (name: string, arr: Float32Array, size: number) => geo.setAttribute(name, new THREE.InstancedBufferAttribute(arr, size));
       at("aDir", dir, 3); at("aWid", wid, 2); at("aDelay", delay, 1);
       const zeroC = new Float32Array(n * 3);
-      c = { mesh: null, cells, h0: new Float32Array(n), h1: new Float32Array(n), c0: zeroC, c1: new Float32Array(n * 3), delay, t0: now };
+      c = { mesh: null, cells, h0: new Float32Array(n), h1: new Float32Array(n), c0: zeroC, c1: new Float32Array(n * 3), delay, t0: now, ms: RISE_MS, s: STAGGER };
       at("aH0", c.h0, 1); at("aH1", c.h1, 1); at("aC0", c.c0, 3); at("aC1", c.c1, 3);
-      const mat = new THREE.ShaderMaterial({ uniforms: { uT: uT.current }, vertexShader: COLUMN_VS, fragmentShader: COLUMN_FS });
+      const mat = new THREE.ShaderMaterial({ uniforms: { uT: uT.current, uS: uS.current }, vertexShader: COLUMN_VS, fragmentShader: COLUMN_FS });
       c.mesh = new THREE.InstancedMesh(geo, mat, n);
       c.mesh.frustumCulled = false;
       scene.add(c.mesh);
@@ -157,9 +173,13 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, target, onPick, label 
         for (let j = 0; j < 3; j++) c.c0[i * 3 + j] = c.c0[i * 3 + j] + (c.c1[i * 3 + j] - c.c0[i * 3 + j]) * e;
       }
     }
-    const { h, c: col } = targets(grid, c.cells, mode, enso);
+    // A year from the scrubber (T2M only) replaces the step picture; years change quickly and all at once.
+    const useYear = !!year && grid.var === "T2M";
+    const { h, c: col } = useYear ? yearTargets(year!, c.cells) : targets(grid, c.cells, mode, enso);
+    const quick = useYear && prev.current?.year != null;
+    c.ms = quick ? YEAR_MS : RISE_MS; c.s = quick ? 0 : STAGGER; uS.current.value = c.s;
     // Luck test → strict test: false alarms that don't survive vanish at once and become dust.
-    const dissolve = prev.current?.mode === "noise" && mode === "real" && prev.current.v === grid.var && !reducedMotion();
+    const dissolve = !useYear && prev.current?.year == null && prev.current?.mode === "noise" && mode === "real" && prev.current.v === grid.var && !reducedMotion();
     const gone: number[] = [];
     if (dissolve) c.cells.forEach((k, i) => { if (grid.p_noise[k] < 0.05 && h[i] === 0) { gone.push(i); c!.h0[i] = 0; } });
     c.h1.set(h); c.c1.set(col);
@@ -170,7 +190,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, target, onPick, label 
     uT.current.value = reducedMotion() ? 1 : 0;
     let raf = 0;
     const tick = (t: number) => {
-      uT.current.value = Math.min(1, (t - c!.t0) / RISE_MS);
+      uT.current.value = Math.min(1, (t - c!.t0) / c!.ms);
       if (uT.current.value < 1) raf = requestAnimationFrame(tick);
     };
     if (!reducedMotion()) raf = requestAnimationFrame(tick);
@@ -211,7 +231,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, target, onPick, label 
       disposeDust = () => { cancelAnimationFrame(draf); scene.remove(dust); geo.dispose(); mat.dispose(); disposeDust = () => {}; };
     }
     return () => { cancelAnimationFrame(raf); disposeDust(); };
-  }, [ready, grid, mode, enso, lat, lon]);
+  }, [ready, grid, mode, enso, lat, lon, year]);
 
   // Fly to the picked place, pulse a ring there, then draw the HUD leader line.
   useEffect(() => {
