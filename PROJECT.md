@@ -11,13 +11,15 @@ Weather jumps around every year. If you test enough places on Earth for a trend,
 
 A website where anyone, with no statistics background, can investigate whether a place on Earth is really changing. We borrowed an idea from finance: test enough stocks and some look like winners by luck, so quants run strict checks before trusting a pattern. We apply the same checks to 46 years of NASA Earth data.
 
-- **Landing page:** a scroll-driven story, from the problem to a world dot map that steps through the tests, then three demo cases and the four checks.
+- **Landing page:** a scroll-driven story, from the problem to a world dot map that steps through the tests, then four cases (three single places and the Case 04 comparison) and the four checks.
 - **Explore a place (step by step):** choose a kind of place (desert, rainforest, big city, polar…), then a place, then what to look at. The app suggests variables for each kind of place. Next you see the data, then one page for each of the four checks, then a plain-language verdict with a globe zoomed to that place.
 - **Ask a question:** type "Is New Jersey getting wetter?" and jump straight to that case. Plain keyword matching, no AI.
 - **Same cause, opposite effects (Case 04):** rain fell over the Amazon (−0.32 mm/day per decade) and rose over the Himalaya & Tibet (+0.13), both passing the strict test, while both regions got warmer and their air holds more water vapor. Warmer air holds more water, but winds decide where it falls. Any two places can be compared side by side.
 - **Use this case:** copy a link, download the numbers as CSV, or copy a citation.
-- **Globe:** a 3D globe of every 2° × 2.5° square of the planet for 9 variables. Step through the simple test, the luck test (shuffled data) and the strict test, and click any spot to see its numbers.
+- **Globe:** a 3D globe of every 2° × 2.5° square of the planet for 9 variables. Step through the simple test, the luck test (shuffled data) and the strict test. Click any square (or use "Jump to a place" from the keyboard) for its numbers and its own verdict, so the checks work anywhere on Earth, not only in the 21 regions.
 - **How it works:** the method, a glossary that defines every term and number on the site, the limits, and the sources.
+- **Install it as an app, use it offline:** the site is a Progressive Web App. It installs on phones and computers ("Install app" in the menu, or "Add to Home Screen" on iPhone) and opens in its own window. After one visit, every page and every region's NASA data is saved on the device, so it works in a classroom with no Wi-Fi.
+- **Works for everyone:** phone layouts, keyboard navigation, screen-reader labels on charts and the globe, and reduced motion when the device asks for it.
 
 ### Verdicts
 
@@ -70,23 +72,24 @@ Across the variables, the strict test removes the most for rain and snow (4,646 
 ## Limitations
 
 - MERRA-2 is a reanalysis (a model constrained by observations), not raw measurements.
-- Aerosol and dust trends can partly reflect changes over time in which satellite data was assimilated (AVHRR, MODIS, MISR).
+- Aerosol and dust trends can partly reflect changes over time in which satellite data was assimilated (AVHRR, MODIS, MISR). For Beijing we checked this against AERONET ground stations, which agree; MERRA-2 also assimilates AERONET, so that check shows consistency rather than full independence.
 - Trends are linear and use yearly means. Rise-then-fall patterns are better described by the walk-forward check.
-- Grid squares are about 200 km across, so a city is averaged with its surroundings.
+- Grid squares are about 250 km across (narrower near the poles), so a city is averaged with its surroundings.
 
 ## Tech
 
-- **Pipeline:** Python (numpy, scipy, xarray, netCDF4, pymannkendall for tests), writing static JSON.
+- **Pipeline:** Python (numpy, scipy, xarray, netCDF4, pymannkendall for tests), writing static JSON. `pipeline/aeronet.py` adds the Beijing ground-station check.
 - **Web:** Next.js 16 + Tailwind CSS 4, Motion (scroll-scrubbed animation), Lenis (smooth scrolling), react-globe.gl / three.js (3D globe). Charts are hand-built in SVG and canvas. Prerendered static pages on Vercel.
+- **App (PWA):** a web app manifest with standard and maskable icons and shortcuts, plus a hand-written service worker. Pages load from the network first and fall back to a saved copy (or an offline page). Build files are served from the cache, since their names change with every build. NASA data shows the saved copy at once and refreshes in the background.
 
 ## Run it
 
-See [README.md](README.md). In short: `pip install -r pipeline/requirements.txt`, set `EARTHDATA_TOKEN`, run `python pipeline/download_merra2.py` and then `python pipeline/build.py`, and finally `cd web && npm install && npm run dev`.
+See [README.md](README.md). The processed data is committed, so to run the site you only need `cd web && npm install && npm run dev`. To rebuild the data: `pip install -r pipeline/requirements.txt`, set `EARTHDATA_TOKEN`, then run `python pipeline/download_merra2.py`, `python pipeline/build.py` and `python pipeline/aeronet.py`.
 
 ## References
 
-Gelaro et al. 2017 (J. Climate), MERRA-2 · Randles et al. 2017 (J. Climate), MERRA-2 aerosols · Hamed & Rao 1998 (J. Hydrology) · Benjamini & Hochberg 1995 (JRSS-B) · Wilks 2016 (BAMS 97(12)) · Weatherhead et al. 1998 (JGR) · Rantanen et al. 2022 (Communications Earth & Environment) · NOAA CPC Niño 3.4 · Natural Earth.
+Gelaro et al. 2017 (J. Climate), MERRA-2 · Randles et al. 2017 (J. Climate), MERRA-2 aerosols · Hamed & Rao 1998 (J. Hydrology) · Benjamini & Hochberg 1995 (JRSS-B) · Wilks 2016 (BAMS 97(12)) · Weatherhead et al. 1998 (JGR) · Rantanen et al. 2022 (Communications Earth & Environment) · Holben et al. 1998 (Remote Sensing of Environment), AERONET · NOAA CPC Niño 3.4 · Natural Earth.
 
 ## AI assistance
 
-Built with help from Claude (Anthropic) for code, design and writing; the authorship is recorded in the commit history.
+Built with help from Claude (Anthropic) for code, design and writing; the authorship is recorded in the commit history. The app itself uses no AI: the "Ask a question" box is plain keyword matching, and every number comes from the NASA data and the statistics above.
