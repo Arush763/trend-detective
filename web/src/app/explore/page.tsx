@@ -1,18 +1,22 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { DEMOS, NICE, TYPE_LABEL, VERDICT, cap, checks, fmt, get, parseQuestion, pfmt, headline, inPlace, placeName, signed, type Grid, type Meta, type Region } from "@/lib/data";
 import { TrendChart } from "@/components/TrendChart";
-import { Badge, Card } from "@/components/ui";
-import { Globe, GlobeScale, cellAt, type Pick } from "@/components/Globe";
+import { Badge, Brackets, Button, Card, Hud, SectionLabel, VerdictStamp } from "@/components/ui";
+import { Globe, GlobeScale, cellAt, trendToneCss, type Pick } from "@/components/Globe";
 import { CellInfo } from "@/components/CellInfo";
 import { ShareTools } from "@/components/ShareTools";
 
 const STEPS = ["Kind of place", "Place", "What to look at", "The data", "Check 1", "Check 2", "Check 3", "Check 4", "Verdict"];
 const DATA = 3, VERDICT_STEP = 8;
 const page = { initial: { opacity: 0, x: 24 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -24 }, transition: { duration: 0.3 } };
+/** Water variables: wetter = the cooling-blue family, drier = ochre. Everything else: rising = warming, falling = cooling. */
+const trendTone = trendToneCss; // one source of truth, shared with /compare (see Globe.tsx)
+/** Question headers report whether they are on screen, so the floating status pill can show only once the header has scrolled away. */
+const HeaderSeen = createContext<(on: boolean) => void>(() => {});
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 /** Snow "trends" in places that almost never have snow are just rounding noise, so we don't offer them. */
 const TRACE_SNOW = 0.5; // kg/m², long-term mean
@@ -37,6 +41,16 @@ export default function Explore() {
   const [globalR, setGlobalR] = useState<Region>(null);
   const [err, setErr] = useState("");
   const lastStep = useRef(-1);
+  const reduce = useReducedMotion();
+  const [headerOn, setHeaderOn] = useState(true); // the question header is on screen
+  const strip = useRef<HTMLOListElement>(null);
+
+  // Keep the active step centred in the (horizontally scrolling) phone strip. scrollTo on the strip only, never the page.
+  useEffect(() => {
+    const c = strip.current, btn = c?.querySelector<HTMLElement>('[aria-current="step"]');
+    if (!c || !btn || c.scrollWidth <= c.clientWidth) return;
+    c.scrollTo({ left: btn.offsetLeft - (c.clientWidth - btn.offsetWidth) / 2, behavior: reduce ? "auto" : "smooth" });
+  }, [step, ready, meta, reduce]);
 
   useEffect(() => {
     get("meta.json").then((m) => {
@@ -98,8 +112,11 @@ export default function Explore() {
   const badVar = !!info && step >= DATA && (!raw || (v === "SNOMAS" && raw.mean < TRACE_SNOW));
   const d = badVar ? null : raw;
 
-  if (err) return <p className="text-red-300">Could not load the data ({err}). Try reloading the page.</p>;
+  if (err) return <p className="text-[var(--false-alarm)]">Could not load the data ({err}). Try reloading the page.</p>;
   if (!meta || !ready) return <Skeleton />;
+  const statusText = info && v && d && step >= DATA
+    ? [step === DATA ? "THE DATA" : step === VERDICT_STEP ? "VERDICT" : `CHECK ${step - DATA} OF 4`, info.name, NICE[v].short].join(" · ")
+    : "";
   const demo = DEMOS.find((x) => x.id === caseId && x.place === placeId && x.v === v);
   const canReach = (i: number) => i <= 0 || (i === 1 && !!type) || (i === 1 && !!placeId) || (i === 2 && !!info) || (i >= DATA && !!d);
   const go = (i: number) => canReach(i) && setStep(i);
@@ -109,26 +126,27 @@ export default function Explore() {
   };
   const newCase = () => { setCaseId(""); setType(""); setPlaceId(""); setV(""); setStep(0); };
   // e.detail > 1 is the second click of a double-click: ignore it so it can't skip a page.
-  const once = (f: () => void) => (e: React.MouseEvent) => { if (e.detail <= 1) f(); };
+  const once = (f: () => void) => ((e: React.MouseEvent) => { if (e.detail <= 1) f(); }) as unknown as () => void; // Button types onClick as () => void, but it passes the event through
 
   return (
     <div className="flex flex-col gap-7">
       {demo && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-5 py-3.5 text-[15px] text-[var(--soft)]">
-          <span><b className="text-[var(--text)]">Demo case:</b> {demo.title}</span>
+        <div className="glass flex flex-wrap items-center justify-between gap-3 !rounded-2xl px-5 py-3.5">
+          <span className="text-[15px] text-[var(--ink-dim)]"><Hud className="mr-3 text-[var(--signal)]">DEMO CASE</Hud><span className="text-[var(--ink)]">{demo.title}</span></span>
           {(() => { const nx = DEMOS[(DEMOS.indexOf(demo) + 1) % DEMOS.length]; return <button type="button" className="pill !rounded-2xl py-2 text-left" onClick={() => startDemo(nx)}>Next demo: {nx.title}</button>; })()}
         </div>
       )}
 
       <nav aria-label="Case steps" className="flex flex-col gap-3">
-        <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-          <motion.div className="h-full bg-[var(--accent)]" animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+        <div className="h-px bg-[var(--ink-faint)]">
+          <motion.div className="h-px bg-[var(--signal)]" animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }} transition={reduce ? { duration: 0 } : undefined} />
         </div>
-        <ol className="-mx-4 m-0 flex list-none flex-nowrap gap-1.5 overflow-x-auto px-4 py-0 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0">
+        <ol ref={strip} className="relative -mx-4 m-0 flex list-none flex-nowrap gap-1.5 overflow-x-auto px-5 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-1">
           {STEPS.map((s, i) => (
             <li key={s} className="shrink-0">
               <button type="button" onClick={() => go(i)} disabled={!canReach(i)} aria-current={i === step ? "step" : undefined}
-                className={`min-h-11 whitespace-nowrap rounded-full px-3.5 text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${i === step ? "bg-[var(--accent)] font-semibold text-[#04211d]" : "text-[var(--soft)] hover:bg-white/[0.07]"}`}>
+                className={`hud relative min-h-11 whitespace-nowrap px-3.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${i === step ? "text-[var(--ink)]" : "text-[var(--ink-dim)] hover:text-[var(--ink)]"}`}>
+                {i === step && <Brackets layoutId="case-steps" />}
                 {s}
               </button>
             </li>
@@ -136,6 +154,20 @@ export default function Explore() {
         </ol>
       </nav>
 
+      {/* Dynamic island: floats in only once the question header has scrolled out of view. The h1 carries the same info. */}
+      <AnimatePresence>
+        {statusText && !headerOn && (
+          <div aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-[76px] z-30 flex justify-center px-4">
+            <motion.div layout={!reduce} key="island" initial={reduce ? false : { opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={reduce ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, y: -12 }} transition={reduce ? { duration: 0 } : { duration: 0.3 }}
+              className="glass-strong inline-flex max-w-[calc(100vw-32px)] items-center gap-2 !rounded-full px-4 py-2">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--signal)]" />
+              <Hud className="truncate text-[var(--ink)]">{statusText}</Hud>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <HeaderSeen.Provider value={setHeaderOn}>
       <AnimatePresence mode="wait">
         <motion.div key={step} {...page}>
           {step === 0 && <KindStep meta={meta} type={type} pick={(t) => {
@@ -153,19 +185,22 @@ export default function Explore() {
           ))}
         </motion.div>
       </AnimatePresence>
+      </HeaderSeen.Provider>
+
+      {step === VERDICT_STEP && d && <NextCase demo={demo} startDemo={startDemo} />}
 
       {step >= 1 && (
-        <div className="flex flex-wrap justify-between gap-3 border-t border-[var(--line)] pt-5">
-          <button type="button" className="btn btn-ghost" onClick={once(() => setStep((s) => Math.max(0, s - 1)))}>← Back</button>
+        <div className="flex flex-wrap justify-between gap-3 border-t border-[var(--glass-stroke)] pt-5">
+          <Button variant="glass" arrow="←" onClick={once(() => setStep((s) => Math.max(0, s - 1)))}>Back</Button>
           {step >= DATA && step < VERDICT_STEP && (
-            <button type="button" className="btn btn-primary" onClick={once(() => setStep((s) => Math.min(VERDICT_STEP, s + 1)))}>
-              {step === DATA ? "Start the checks →" : step === VERDICT_STEP - 1 ? "See the verdict →" : `Next: check ${step - DATA + 1} →`}
-            </button>
+            <Button onClick={once(() => setStep((s) => Math.min(VERDICT_STEP, s + 1)))}>
+              {step === DATA ? "Start the checks" : step === VERDICT_STEP - 1 ? "See the verdict" : `Next: check ${step - DATA + 1}`}
+            </Button>
           )}
           {step === VERDICT_STEP && (
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="btn btn-ghost" onClick={once(() => { setCaseId(""); setV(""); setStep(2); })}>Look at something else here</button>
-              <button type="button" className="btn btn-primary" onClick={once(newCase)}>Start a new case</button>
+              <Button variant="glass" arrow={false} onClick={once(() => { setCaseId(""); setV(""); setStep(2); })}>Look at something else here</Button>
+              <Button onClick={once(newCase)}>Start a new case</Button>
             </div>
           )}
         </div>
@@ -174,15 +209,28 @@ export default function Explore() {
   );
 }
 
-const Loading = () => <p className="text-[var(--muted)]" role="status">Loading…</p>;
+/** Lusion-style "keep scrolling" footer. Click or Enter only: it never navigates on scroll. */
+function NextCase({ demo, startDemo }: { demo?: (typeof DEMOS)[number]; startDemo: (x: (typeof DEMOS)[number]) => void }) {
+  const nx = DEMOS[demo ? (DEMOS.indexOf(demo) + 1) % DEMOS.length : 0];
+  return (
+    <button type="button" onClick={(e) => { if (e.detail <= 1) startDemo(nx); }}
+      className="glass group relative flex w-full cursor-pointer flex-col items-start gap-3 !rounded-[28px] px-6 py-8 text-left transition-colors hover:border-[var(--signal)]/50 sm:px-10 sm:py-12">
+      <Hud className="text-[var(--ink-dim)]">KEEP SCROLLING · NEXT CASE →</Hud>
+      <span className="font-display text-[clamp(32px,5.5vw,72px)] leading-[0.95] tracking-[-0.03em] text-[var(--ink)] transition-transform duration-300 group-hover:translate-x-2 motion-reduce:transition-none">{nx.title}</span>
+    </button>
+  );
+}
+
+const Loading = () => <p className="hud text-[var(--ink-dim)]" role="status">Loading…</p>;
 
 function Skeleton() {
+  const shim = "glass motion-safe:animate-pulse";
   return (
     <div className="flex flex-col gap-6" role="status" aria-label="Loading NASA data">
-      <div className="h-1.5 rounded-full bg-white/[0.07]" />
-      <div className="h-10 w-2/3 rounded-xl bg-white/[0.06] motion-safe:animate-pulse" />
+      <div className="h-px bg-[var(--ink-faint)]" />
+      <div className={`h-10 w-2/3 !rounded-xl ${shim}`} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-[92px] rounded-[20px] bg-white/[0.04] motion-safe:animate-pulse" />)}
+        {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className={`h-[92px] ${shim}`} />)}
       </div>
     </div>
   );
@@ -191,6 +239,15 @@ function Skeleton() {
 function Question({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
   const ref = useRef<HTMLHeadingElement>(null);
   const first = useRef(true);
+  const report = useContext(HeaderSeen);
+  const box = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => report(e.isIntersecting), { rootMargin: "-76px 0px 0px 0px" });
+    io.observe(el);
+    return () => { io.disconnect(); report(true); };
+  }, [report]);
   // Move focus to the new question when the step changes (not on first load), so keyboard and
   // screen-reader users land on the new page instead of being dropped at the top of the document.
   useEffect(() => {
@@ -199,15 +256,15 @@ function Question({ eyebrow, title, sub }: { eyebrow: string; title: string; sub
     ref.current?.focus({ preventScroll: true });
   }, [title]);
   return (
-    <header className="mb-6 flex max-w-[820px] flex-col gap-2">
-      <p className="eyebrow">{eyebrow}</p>
-      <h1 ref={ref} tabIndex={-1} className="text-balance font-display text-[clamp(32px,4vw,48px)] font-light leading-[1.08] tracking-tight outline-none">{title}</h1>
-      {sub && <p className="text-pretty text-lg leading-relaxed text-[var(--soft)]">{sub}</p>}
+    <header ref={box} className="mb-8 flex max-w-[860px] flex-col gap-3">
+      <SectionLabel>{eyebrow}</SectionLabel>
+      <h1 ref={ref} tabIndex={-1} className="text-balance font-display text-[clamp(36px,5vw,64px)] leading-[0.95] tracking-[-0.03em] outline-none">{title}</h1>
+      {sub && <p className="max-w-[60ch] text-pretty text-lg leading-relaxed text-[var(--ink-dim)]">{sub}</p>}
     </header>
   );
 }
 
-const CHOICE = "flex cursor-pointer flex-col gap-1.5 rounded-[20px] border border-[var(--line)] bg-white/[0.04] p-5 text-left text-[var(--text)] transition-colors hover:border-[var(--accent)]/50 hover:bg-white/[0.07] aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)]/10 aria-pressed:ring-1 aria-pressed:ring-[var(--accent)]";
+const CHOICE = "glass relative flex cursor-pointer flex-col gap-1.5 !rounded-[20px] p-5 text-left text-[var(--ink)] transition-colors hover:border-[var(--signal)]/50 aria-pressed:border-[var(--signal)]/60";
 
 function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | null) => void }) {
   const [q, setQ] = useState("");
@@ -221,17 +278,17 @@ function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | nu
       : `We couldn't match that to a place in our data. Try a place like ${some}, and a word like warmer, wetter, snow or haze.`);
   };
   return (
-    <form className="mb-8 flex flex-col gap-3 rounded-[20px] border border-[var(--accent)]/30 bg-[var(--accent)]/[0.06] p-5" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
-      <label htmlFor="ask" className="font-display text-xl font-normal">Ask a question</label>
+    <form className="glass mb-8 flex flex-col gap-3 !rounded-[20px] p-5" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
+      <label htmlFor="ask"><SectionLabel>ASK A QUESTION</SectionLabel></label>
       <div className="flex flex-wrap gap-2">
         <input id="ask" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Is New Jersey getting wetter?" autoComplete="off"
-          className="min-h-12 min-w-0 flex-[1_1_260px] rounded-full border border-white/20 bg-[#070b1a]/60 px-5 text-[16px] text-[var(--text)] placeholder:text-[var(--muted)]" />
-        <button type="submit" className="btn btn-primary">Investigate →</button>
+          className="min-h-12 min-w-0 flex-[1_1_260px] rounded-full border border-white/20 bg-[var(--void)]/60 px-5 text-[16px] text-[var(--ink)] placeholder:text-[var(--ink-dim)]" />
+        <Button type="submit">Investigate</Button>
       </div>
-      <p className="text-[13px] text-[var(--muted)]">Try:{" "}
-        {examples.map((x, i) => <span key={x}>{i > 0 && " · "}<button type="button" className="inline-flex min-h-11 items-center text-[var(--accent)] underline-offset-4 hover:underline" onClick={() => { setQ(x); submit(x); }}>{x}</button></span>)}
+      <p className="text-[13px] text-[var(--ink-dim)]">Try:{" "}
+        {examples.map((x, i) => <span key={x}>{i > 0 && " · "}<button type="button" className="inline-flex min-h-11 items-center text-[var(--signal)] underline-offset-4 hover:underline" onClick={() => { setQ(x); submit(x); }}>{x}</button></span>)}
       </p>
-      <p role="status" className="text-[14px] text-[var(--maybe)]">{msg}</p>
+      <p role="status" className="text-[14px] text-[var(--ink-dim)]">{msg}</p>
     </form>
   );
 }
@@ -247,15 +304,17 @@ function KindStep({ meta, type, pick, startDemo, ask }: { meta: Meta; type: stri
           const rs = meta.regions.filter((r: any) => r.type === t);
           return (
             <button key={t} type="button" onClick={() => pick(t)} aria-pressed={t === type} className={`min-h-[92px] ${CHOICE}`}>
-              <span className="text-lg font-semibold">{TYPE_LABEL[t] ?? t}</span>
-              <span className="text-sm text-[var(--muted)]">{rs.map((r: any) => r.name).join(" · ")}</span>
+              {t === type && <Brackets layoutId="kind-pick" />}
+              <Hud className="text-[var(--ink-dim)]">{rs.length} {rs.length === 1 ? "PLACE" : "PLACES"}</Hud>
+              <span className="text-lg text-[var(--ink)]">{TYPE_LABEL[t] ?? t}</span>
+              <span className="text-sm text-[var(--ink-dim)]">{rs.map((r: any) => r.name).join(" · ")}</span>
             </button>
           );
         })}
       </div>
-      <p className="mt-6 text-[15px] text-[var(--soft)]">Not sure? Try a demo case:{" "}
-        {DEMOS.map((x, i) => <span key={x.id}>{i > 0 && " · "}<button type="button" onClick={() => startDemo(x)} className="inline-flex min-h-11 cursor-pointer items-center font-semibold text-[var(--accent)] underline-offset-4 hover:underline">{x.title}</button></span>)}
-        {" · "}<Link href="/compare" className="inline-flex min-h-11 items-center font-semibold">Same cause, opposite effects: Amazon vs Himalaya</Link>
+      <p className="mt-6 text-[15px] text-[var(--ink-dim)]">Not sure? Try a demo case:{" "}
+        {DEMOS.map((x, i) => <span key={x.id}>{i > 0 && " · "}<button type="button" onClick={() => startDemo(x)} className="inline-flex min-h-11 cursor-pointer items-center text-[var(--signal)] underline-offset-4 hover:underline">{x.title}</button></span>)}
+        {" · "}<Link href="/compare" className="inline-flex min-h-11 items-center">Same cause, opposite effects: Amazon vs Himalaya</Link>
       </p>
     </section>
   );
@@ -269,8 +328,10 @@ function PlaceStep({ meta, type, placeId, pick }: { meta: Meta; type: string; pl
       <div className="grid gap-3 sm:grid-cols-2">
         {rs.map((r: any) => (
           <button key={r.id} type="button" onClick={() => pick(r.id)} aria-pressed={r.id === placeId} className={CHOICE}>
-            <span className="text-lg font-semibold">{r.name}</span>
-            <span className="text-[15px] leading-normal text-[var(--dim)]">{r.blurb}</span>
+            {r.id === placeId && <Brackets layoutId="place-pick" />}
+            <Hud className="text-[var(--ink-dim)]">{TYPE_LABEL[r.type] ?? r.type}</Hud>
+            <span className="text-lg text-[var(--ink)]">{r.name}</span>
+            <span className="text-[15px] leading-normal text-[var(--ink-dim)]">{r.blurb}</span>
           </button>
         ))}
       </div>
@@ -287,12 +348,14 @@ function WhatStep({ meta, info, v, pick, note }: { meta: Meta; info: Region; v: 
     <section>
       <Question eyebrow={`Question 3 · ${info.name}`} title={`What do you want to look at ${inPlace(info)}?`}
         sub={`${info.blurb} The ones marked ★ matter most for a ${(TYPE_LABEL[info.type] ?? info.type).toLowerCase()} place.`} />
-      {note && <p role="status" className="mb-4 rounded-2xl border border-[var(--maybe)]/40 bg-[var(--maybe)]/10 px-5 py-3 text-[15px] text-[var(--text)]">{note}</p>}
+      {note && <p role="status" className="mb-4 !rounded-2xl glass px-5 py-3 text-[15px] text-[var(--ink)]">{note}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {order.map((k: string) => (
           <button key={k} type="button" onClick={() => pick(k)} aria-pressed={k === v} className={CHOICE}>
-            <span className="text-lg font-semibold">{NICE[k].short}{suggested.includes(k) && <span className="text-[var(--accent)]"><span aria-hidden="true"> ★</span> suggested</span>}</span>
-            <span className="text-[15px] leading-normal text-[var(--dim)]">{meta.variables[k].definition}</span>
+            {k === v && <Brackets layoutId="what-pick" />}
+            <Hud className="text-[var(--ink-dim)]">{k} · {NICE[k].units}</Hud>
+            <span className="text-lg text-[var(--ink)]">{NICE[k].short}{suggested.includes(k) && <span className="text-[var(--signal)]"><span aria-hidden="true"> ★</span> suggested</span>}</span>
+            <span className="text-[15px] leading-normal text-[var(--ink-dim)]">{meta.variables[k].definition}</span>
           </button>
         ))}
       </div>
@@ -317,32 +380,32 @@ function DataStep({ meta, info, v, d }: { meta: Meta; info: Region; v: string; d
     return () => { live = false; };
   }, [showCheck]);
   const overlays = showCheck && check && view === "year" && !enso
-    ? check.sites.map((st: any, i: number) => ({ label: `NASA AERONET ground station "${st.site}"`, color: i ? "#5eead4" : "#fbbf24", points: st.years.map((y: number, j: number) => [y, st.aod550[j]]) }))
+    ? check.sites.map((st: any, i: number) => ({ label: `NASA AERONET ground station "${st.site}"`, color: i ? "var(--cooling)" : "var(--ink)", points: st.years.map((y: number, j: number) => [y, st.aod550[j]]) }))
     : [];
   return (
     <section>
       <Question eyebrow={`The data · ${info.name} · ${n.short}`} title={headline(v, inPlace(info), d, meta.years).title}
         sub={`That's ${signed(d.slope_decade)} ${n.units} every 10 years. But is it a real trend, or just noise? The next four pages check.`} />
-      {meta.variables[v].caveat && <p className="mb-4 text-sm text-[#fdba74]">Caution: {meta.variables[v].caveat}</p>}
+      {meta.variables[v].caveat && <p className="mb-4 text-sm text-[var(--ink-dim)]"><Hud className="mr-2 text-[var(--ink)]">Caution</Hud>{meta.variables[v].caveat}</p>}
       <Card className="flex flex-col gap-5 p-5 sm:p-7">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h2 className="font-display text-xl font-normal">{view === "year" ? `Average ${n.noun} each year` : `${n.short} each month, compared with a normal month`}</h2>
+          <h2 className="font-display text-xl">{view === "year" ? `Average ${n.noun} each year` : `${n.short} each month, compared with a normal month`}</h2>
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Chart view">
             <button type="button" className="pill" aria-pressed={view === "year"} onClick={() => setView("year")}>Yearly averages</button>
             <button type="button" className="pill" aria-pressed={view === "month"} onClick={() => setView("month")}>Month by month</button>
             <label className={`pill flex items-center gap-2 ${view === "month" ? "pointer-events-none opacity-40" : ""}`}>
-              <input type="checkbox" className="h-[18px] w-[18px] accent-[var(--accent)]" checked={ensoOn} disabled={view === "month"} onChange={(e) => setEnso(e.target.checked)} />
+              <input type="checkbox" className="h-[18px] w-[18px] accent-[var(--signal)]" checked={ensoOn} disabled={view === "month"} onChange={(e) => setEnso(e.target.checked)} />
               Remove El Niño
             </label>
           </div>
         </div>
         {view === "year"
           ? <TrendChart years={meta.years} y={yearly} perYear={1} slope={slope} intercept={enso ? undefined : d.intercept}
-              ci={enso ? undefined : [d.ci_decade[0] / 10, d.ci_decade[1] / 10]} units={n.units} title={`${n.short} ${inPlace(info)}`} overlays={overlays} />
-          : <TrendChart years={meta.years} y={d.monthly_anom} perYear={12} slope={d.slope_decade / 10} units={n.units} title={`${n.short} ${inPlace(info)}, monthly`} />}
-        <p className="text-sm text-[var(--soft)]">
+              ci={enso ? undefined : [d.ci_decade[0] / 10, d.ci_decade[1] / 10]} trendColor={trendTone(v, slope)} units={n.units} title={`${n.short} ${inPlace(info)}`} overlays={overlays} />
+          : <TrendChart years={meta.years} y={d.monthly_anom} perYear={12} slope={d.slope_decade / 10} trendColor={trendTone(v, d.slope_decade)} units={n.units} title={`${n.short} ${inPlace(info)}, monthly`} />}
+        <p className="text-sm text-[var(--ink-dim)]">
           {view === "year"
-            ? "Each dot is one year's average, so summer and winter cancel out. The orange line is the trend; the shaded wedge shows the range of slopes we're 95% sure of."
+            ? "Each dot is one year's average, so summer and winter cancel out. The coloured line is the trend; the shaded wedge shows the range of slopes we're 95% sure of."
             : "Each point is one month minus a normal month for that time of year, so the seasons are removed but you can see every wiggle. El Niño removal works on yearly averages only."}
           {ensoOn && ` El Niño (a natural Pacific Ocean cycle) removed: the trend is ${signed(d.slope_enso_decade)} ${n.units} per decade instead of ${signed(d.slope_decade)} (corrected p ${pfmt(d.p_enso_hr)}).`}
         </p>
@@ -358,25 +421,43 @@ function CheckStep({ i, meta, info, v, d }: { i: number; meta: Meta; info: Regio
     <section>
       <Question eyebrow={`Check ${i + 1} of 4 · ${info.name} · ${n.short}`} title={c.q} />
       <Card className="flex flex-col gap-6 p-5 sm:p-8">
-        <span className={`font-display text-4xl font-light ${c.pass == null ? "text-[var(--soft)]" : c.pass ? "text-[var(--accent)]" : "text-[var(--maybe)]"}`}>
-          {c.pass == null ? "Too weak in each half to tell" : c.pass ? "Passed" : "Not passed"}
-        </span>
+        <div className="flex flex-wrap items-center gap-4">
+          <CheckStamp pass={c.pass} />
+          {c.pass == null && <span className="font-display text-2xl text-[var(--ink-dim)]">Too weak in each half to tell</span>}
+        </div>
         <CheckVisual i={i} meta={meta} v={v} d={d} />
-        <p className="text-lg leading-relaxed text-[var(--soft)]">{c.text}</p>
-        <p className="text-sm text-[var(--muted)]">{c.note}</p>
+        <p className="max-w-[60ch] text-lg leading-relaxed text-[var(--ink-dim)]">{c.text}</p>
+        <p className="text-sm text-[var(--ink-dim)]">{c.note}</p>
       </Card>
     </section>
   );
 }
 
-function Bar({ label, value, max, color, text }: { label: string; value: number; max: number; color: string; text: string }) {
+/** The stamp lands after the visual has drawn. */
+function CheckStamp({ pass }: { pass: boolean | null }) {
+  const reduce = useReducedMotion();
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setOn(true), reduce ? 0 : 900);
+    return () => window.clearTimeout(id);
+  }, [reduce]);
+  return (
+    <div className="min-h-[38px]">
+      {on && (pass == null ? <VerdictStamp verdict="not-proven" /> : pass ? <VerdictStamp verdict="passed" /> : <VerdictStamp verdict="failed">NOT PASSED</VerdictStamp>)}
+    </div>
+  );
+}
+
+function Bar({ label, value, max, color, text, line }: { label: string; value: number; max: number; color: string; text: string; line?: boolean }) {
+  const reduce = useReducedMotion();
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      <span className="w-64 shrink-0 text-[15px] text-[var(--soft)]">{label}</span>
-      <div className="h-7 min-w-[140px] flex-1 rounded-lg bg-white/[0.06]" aria-hidden="true">
-        <motion.div className="h-full rounded-lg" style={{ background: color }} initial={{ width: 0 }} animate={{ width: `${Math.min(100, (value / max) * 100)}%` }} transition={{ duration: 0.7 }} />
+      <span className="w-64 shrink-0 text-[15px] text-[var(--ink-dim)]">{label}</span>
+      <div className="h-7 min-w-[140px] flex-1 rounded-md bg-white/[0.06]" aria-hidden="true">
+        <motion.div className="h-full rounded-md" style={line ? { border: "1px solid var(--signal)", background: "repeating-linear-gradient(135deg, rgba(94,234,212,0.18) 0 4px, transparent 4px 8px)" } : { background: color }}
+          initial={reduce ? false : { width: 0 }} animate={{ width: `${Math.min(100, (value / max) * 100)}%` }} transition={{ duration: reduce ? 0 : 0.7 }} />
       </div>
-      <span className="w-44 shrink-0 text-[15px] tabular-nums">{text}</span>
+      <span className="hud w-44 shrink-0 !normal-case tabular-nums text-[var(--ink)]">{text}</span>
     </div>
   );
 }
@@ -387,9 +468,9 @@ function CheckVisual({ i, meta, v, d }: { i: number; meta: Meta; v: string; d: a
     const tot = Math.abs(d.total_change), wob = d.noise_level, max = Math.max(tot, wob * 2);
     return (
       <div className="flex flex-col gap-3">
-        <Bar label="Total change since 1980" value={tot} max={max} color="var(--up)" text={`${fmt(tot)} ${u}`} />
-        <Bar label="Normal wobble (one year)" value={wob} max={max} color="#c7d2fe" text={`${fmt(wob)} ${u}`} />
-        <Bar label="Pass line (2 × wobble)" value={wob * 2} max={max} color="rgba(94,234,212,0.35)" text={`${fmt(wob * 2)} ${u}`} />
+        <Bar label="Total change since 1980" value={tot} max={max} color={trendTone(v, d.slope_decade)} text={`${fmt(tot)} ${u}`} />
+        <Bar label="Normal wobble (one year)" value={wob} max={max} color="var(--ink-dim)" text={`${fmt(wob)} ${u}`} />
+        <Bar label="Pass line (2 × wobble)" value={wob * 2} max={max} color="var(--signal)" line text={`${fmt(wob * 2)} ${u}`} />
       </div>
     );
   }
@@ -397,8 +478,8 @@ function CheckVisual({ i, meta, v, d }: { i: number; meta: Meta; v: string; d: a
     const beat = Math.max(0, Math.round(d.p_perm * 2001) - 1);
     return (
       <div className="flex flex-col gap-3">
-        <Bar label="Shuffles that beat the real data" value={beat} max={2000} color="var(--maybe)" text={`${beat.toLocaleString("en-US")} of 2,000`} />
-        <Bar label="Pass line (5 in 100)" value={100} max={2000} color="rgba(94,234,212,0.35)" text="100 of 2,000" />
+        <Bar label="Shuffles that beat the real data" value={beat} max={2000} color="var(--false-alarm)" text={`${beat.toLocaleString("en-US")} of 2,000`} />
+        <Bar label="Pass line (5 in 100)" value={100} max={2000} color="var(--signal)" line text="100 of 2,000" />
       </div>
     );
   }
@@ -406,12 +487,12 @@ function CheckVisual({ i, meta, v, d }: { i: number; meta: Meta; v: string; d: a
     const pct = Math.min(100, d.q * 100);
     return (
       <div className="flex flex-col gap-3">
-        <Bar label="False-alarm rate" value={Math.max(pct, 0.4)} max={50} color="var(--maybe)" text={d.q < 0.0001 ? "under 0.01%" : `${fmt(pct)}%`} />
-        <Bar label="Pass line" value={5} max={50} color="rgba(94,234,212,0.35)" text="5%" />
+        <Bar label="False-alarm rate" value={Math.max(pct, 0.4)} max={50} color="var(--false-alarm)" text={d.q < 0.0001 ? "under 0.01%" : `${fmt(pct)}%`} />
+        <Bar label="Pass line" value={5} max={50} color="var(--signal)" line text="5%" />
       </div>
     );
   }
-  return <TrendChart years={meta.years} y={d.annual} perYear={1} slope={d.slope_decade / 10} intercept={d.intercept} split={meta.split_year} units={u} title={`${NICE[v].short}, first and second half`} />;
+  return <TrendChart years={meta.years} y={d.annual} perYear={1} slope={d.slope_decade / 10} intercept={d.intercept} split={meta.split_year} trendColor={trendTone(v, d.slope_decade)} units={u} title={`${NICE[v].short}, first and second half`} />;
 }
 
 function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Region; v: string; d: any; globalR: Region; go: (i: number) => void }) {
@@ -433,31 +514,31 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
       : info.id === "arctic" ? { lat: 85, lng: 0, altitude: 2 }
         : { lat: (a + b) / 2, lng: (c + e) / 2, altitude: Math.min(2.2, Math.max(1.5, Math.max(b - a, e - c) / 45 + 1.2)) }; // far enough out to still read as a globe
   }, [info]);
-  const tone = vd.tone === "real" ? "var(--accent)" : vd.tone === "maybe" ? "var(--maybe)" : "var(--soft)";
+  const tone = vd.tone === "real" ? "var(--signal)" : vd.tone === "maybe" ? "var(--ink-dim)" : "var(--noise)";
 
   return (
     <section className="flex flex-col gap-6">
       <Question eyebrow={`Verdict · ${info.name} · ${n.short}`} title={h.title} />
       <div className="flex flex-wrap gap-6">
         <div className="flex min-w-0 flex-[1_1_440px] flex-col gap-5">
-          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4 }}
-            className="flex flex-col gap-2 rounded-[20px] border-2 p-7" style={{ borderColor: tone, background: `color-mix(in srgb, ${tone} 10%, transparent)` }}>
-            <span className="text-sm text-[var(--soft)]">Verdict</span>
-            <span className="font-display text-[44px] font-light leading-none" style={{ color: tone }}>{vd.label}</span>
-            <span className="text-lg leading-relaxed text-[var(--soft)]">{h.sub}</span>
+          <motion.div initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.4 }}
+            className="glass flex flex-col gap-3 !rounded-[20px] p-7" style={{ borderColor: tone }}>
+            <SectionLabel>VERDICT</SectionLabel>
+            <div><VerdictStamp verdict={vd.tone === "real" ? "passed" : "not-proven"} className={vd.tone === "none" ? "!border-noise !text-ink-dim" : ""}>{vd.label}</VerdictStamp></div>
+            <span className="max-w-[60ch] text-lg leading-relaxed text-[var(--ink-dim)]">{h.sub}</span>
           </motion.div>
           <Card className="flex flex-col gap-1 p-4">
             {cs.map((c, i) => (
               <button key={c.q} type="button" onClick={() => go(DATA + 1 + i)}
-                className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] text-[var(--text)] hover:bg-white/[0.06]">
-                <span>{i + 1}. {c.q}{i === 2 && <span className="text-[13px] text-[var(--muted)]"> (decides the verdict)</span>}</span>
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] text-[var(--ink)] hover:bg-white/[0.06]">
+                <span>{i + 1}. {c.q}{i === 2 && <span className="text-[13px] text-[var(--ink-dim)]"> (decides the verdict)</span>}</span>
                 <Badge tone={c.pass == null ? "na" : c.pass ? "pass" : "fail"}>{c.pass == null ? "n/a" : c.pass ? "Passed" : "Not passed"}</Badge>
               </button>
             ))}
           </Card>
           {d.verdict === "possible" && d.years_more != null && (
-            <Card className="border-dashed text-[15px] leading-relaxed text-[var(--soft)]">
-              <b className="text-[var(--text)]">How long until we&apos;d know? </b>
+            <Card className="border-dashed text-[15px] leading-relaxed text-[var(--ink-dim)]">
+              <b className="font-normal text-[var(--ink)]">How long until we&apos;d know? </b>
               {d.years_more > 50
                 ? <>At this size, it would take many decades more data (over {Math.floor(d.years_more / 10) * 10} years) to be fairly sure. The trend is small next to the normal ups and downs.</>
                 : d.years_more > 0
@@ -467,19 +548,19 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
           )}
           {gl && info.id !== "global" && (
             <Card className="flex flex-col gap-4">
-              <h2 className="font-display text-lg font-normal">Compared with the whole planet</h2>
-              {[[info.name, d.slope_decade, d.slope_decade < 0 ? "var(--down)" : "var(--up)"], ["Whole Earth", gl.slope_decade, "var(--muted)"]].map(([name, s, c]) => (
+              <SectionLabel>COMPARED WITH THE WHOLE PLANET</SectionLabel><h2 className="sr-only">Compared with the whole planet</h2>
+              {[[info.name, d.slope_decade, trendTone(v, d.slope_decade)], ["Whole Earth", gl.slope_decade, "var(--ink-dim)"]].map(([name, s, c]) => (
                 <Bar key={name as string} label={name as string} value={Math.abs(s as number)} max={Math.max(Math.abs(d.slope_decade), Math.abs(gl.slope_decade)) || 1}
                   color={c as string} text={`${signed(s as number)} ${n.units} per decade`} />
               ))}
-              <p className="text-[15px] leading-relaxed text-[var(--soft)]">
+              <p className="text-[15px] leading-relaxed text-[var(--ink-dim)]">
                 {ratio != null
-                  ? <>{cap(placeName(info))} is changing <b className="text-[var(--text)]">{fmt(ratio, 2)} times as fast</b> as Earth as a whole (its trend divided by the planet&apos;s).</>
+                  ? <>{cap(placeName(info))} is changing <b className="font-normal text-[var(--ink)]">{fmt(ratio, 2)} times as fast</b> as Earth as a whole (its trend divided by the planet&apos;s).</>
                   : gl.verdict !== "significant"
                     ? <>Earth as a whole has no proven trend in {n.noun}, so there&apos;s no planet-wide speed to compare with.</>
                     : <>{cap(placeName(info))} is moving in the opposite direction from Earth as a whole.</>}
                 {info.id === "arctic" && v === "T2M" && meta.sanity?.matched && (
-                  <> Scientists call this <b className="text-[var(--text)]">Arctic amplification</b>. One big reason: melting ice and snow uncover darker ground and water that soak up more sunlight.
+                  <> Scientists call this <b className="font-normal text-[var(--ink)]">Arctic amplification</b>. One big reason: melting ice and snow uncover darker ground and water that soak up more sunlight.
                     A 2022 study using observations found about 3.8 times for 1979–2021; our NASA data gives {fmt(meta.sanity.matched.ratio, 2)} times for nearly the same years (1980–2021), within the range different data sets give.</>
                 )}
               </p>
@@ -487,7 +568,7 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
           )}
         </div>
         <figure className="m-0 flex min-w-0 flex-[1_1_400px] flex-col items-center gap-3">
-          <figcaption className="self-start text-[15px] text-[var(--soft)]"><b className="text-[var(--text)]">{n.short} trends around {placeName(info)}</b> (outlined), strict test. Click any square for its numbers.</figcaption>
+          <figcaption className="self-start text-[15px] text-[var(--ink-dim)]"><b className="font-normal text-[var(--ink)]">{n.short} trends around {placeName(info)}</b> (outlined), strict test. Click any square for its numbers.</figcaption>
           <div className="w-full max-w-[min(520px,82vw)]">
             <Globe grid={g} mode="real" focus={focus} box={info.id === "global" ? undefined : info.box} pick={pick}
               onPick={(p) => g && setPick(cellAt(g, meta.grid.lat, meta.grid.lon, p))}
@@ -497,8 +578,8 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
           <div className="w-full"><CellInfo meta={meta} grid={g} v={v} pick={pick} mode="real" enso={false} onClose={() => setPick(null)} /></div>
         </figure>
       </div>
-      <details className="rounded-[20px] border border-[var(--line)] bg-white/[0.04] px-7 py-5">
-        <summary className="flex min-h-11 cursor-pointer items-center font-semibold">The statistics, for the curious</summary>
+      <details className="glass !rounded-[20px] px-7 py-5">
+        <summary className="hud flex min-h-11 cursor-pointer items-center text-[var(--ink)]">The statistics, for the curious</summary>
         <dl className="mt-4 grid gap-x-8 gap-y-4 text-sm leading-normal md:grid-cols-2">
           {[
             [`Sen's slope: ${signed(d.slope_decade)} ${n.units}/decade (95% range ${fmt(d.ci_decade[0])} to ${fmt(d.ci_decade[1])})`, "The median of the slopes between every pair of years (1,035 pairs). Unlike a regular best-fit line, one odd year can't drag it."],
@@ -508,7 +589,7 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
             [`Normal wobble: ${fmt(d.noise_level)} ${n.units}, year-to-year memory ${fmt(d.autocorr)}`, "Wobble is the typical distance of a year from the trend line. Memory (lag-1 autocorrelation) is how much each year looks like the one before, from −1 to 1."],
             [`El Niño effect: ${signed(d.enso_coef)} ${n.units} per °C of Niño 3.4 (p ${pfmt(d.enso_p)})`, "How much this place's yearly average shifts for each 1 °C of El Niño warming in the central Pacific (the NOAA Niño 3.4 index), from a fit of trend plus that index."],
           ].map(([t, dd]) => (
-            <div key={t}><dt className="font-semibold">{t}</dt><dd className="ml-0 mt-0.5 text-[var(--dim)]">{dd}</dd></div>
+            <div key={t}><dt className="text-[var(--ink)]">{t}</dt><dd className="ml-0 mt-0.5 text-[var(--ink-dim)]">{dd}</dd></div>
           ))}
         </dl>
       </details>
@@ -518,7 +599,7 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
         notes={[`${n.short} ${inPlace(info)} (${info.name}; box ${info.box.join(", ")} as lat min, lat max, lon min, lon max)`,
           "Source: NASA GMAO MERRA-2 monthly reanalysis via NASA GES DISC; yearly means of the monthly values.",
           `Sen's slope ${d.slope_decade} ${n.units} per decade (95% range ${d.ci_decade[0]} to ${d.ci_decade[1]}); Mann-Kendall p ${d.p_naive}; Hamed-Rao p ${d.p_hr}; false-alarm rate q ${d.q}; verdict: ${vd.label}`]} />
-      <p className="text-sm text-[var(--muted)]">Want the whole planet? <Link href={`/globe?v=${v}`}>Open the globe for {n.noun}</Link>.</p>
+      <p className="text-sm text-[var(--ink-dim)]">Want the whole planet? <Link href={`/globe?v=${v}`}>Open the globe for {n.noun}</Link>.</p>
     </section>
   );
 }
@@ -527,16 +608,17 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
 function GroundCheck({ check }: { check: any }) {
   const [a, b] = check.sites;
   return (
-    <Card className="mt-5 flex flex-col gap-3 border-[var(--accent)]/30">
-      <h2 className="font-display text-xl font-normal">Checked against the ground</h2>
-      <p className="text-[15px] leading-relaxed text-[var(--soft)]">
+    <Card className="mt-5 flex flex-col gap-3">
+      <SectionLabel>CHECKED AGAINST THE GROUND</SectionLabel>
+      <h2 className="sr-only">Checked against the ground</h2>
+      <p className="text-[15px] leading-relaxed text-[var(--ink-dim)]">
         MERRA-2&apos;s haze trend could partly come from changes in which satellites were fed into the model. So we compared it with
         NASA&apos;s AERONET sun photometers in Beijing: two ground instruments, each one consistent over its whole record (the diamonds on the chart).
         They tell the same story: haze highest around {a.peak_year} and falling since the mid-2010s. Year by year they move with MERRA-2
         (correlation {a.correlation} for &quot;{a.site}&quot;, {a.years[0]}–{a.years.at(-1)}, and {b.correlation} for &quot;{b.site}&quot;, {b.years[0]}–{b.years.at(-1)}),
         and the two stations agree where they overlap.
       </p>
-      <p className="text-[13px] leading-relaxed text-[var(--muted)]">
+      <p className="text-[13px] leading-relaxed text-[var(--ink-dim)]">
         The stations read higher than MERRA-2 (about {a.mean_ratio_to_merra2}× and {b.mean_ratio_to_merra2}×) because they sit in the city, while MERRA-2 averages a region about 300 km across.
         MERRA-2 also takes in AERONET and satellite data, so this checks consistency rather than being fully independent. Years with fewer than 9 measured months are left out.
       </p>

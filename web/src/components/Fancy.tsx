@@ -1,37 +1,81 @@
 "use client";
-// Decorative pieces: twinkling stars, aurora glows, warming stripes.
-import { useEffect, useState } from "react";
+// Atmosphere: film grain, light leaks, particle dust, plus the warming stripes (which are data).
+import { useEffect, useRef, useState } from "react";
+import { useReducedMotion } from "./ui";
 import { get } from "@/lib/data";
 
-// Seeded random so server and client place the stars identically (no hydration mismatch).
+// 160px tile of monochrome fractal noise, rendered once by the browser and tiled.
+const GRAIN = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.2 -.2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")";
+
+/** Fixed full-screen film grain at 4% opacity. Above content, below the nav, never catches clicks. Mount once. */
+export function Grain() {
+  return <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-40 opacity-[0.04]" style={{ backgroundImage: GRAIN, backgroundSize: "160px 160px" }} />;
+}
+
+/** Soft colored light leaking in from the corners (signal teal and cooling blue, 10-25%). Parent must be `relative`; keep it away from numbers. */
+export function LightLeaks({ className = "" }: { className?: string }) {
+  return (
+    <div aria-hidden="true" className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
+      <div className="absolute -left-[12%] -top-[22%] h-[70%] min-h-[240px] w-[55%] min-w-[320px] rounded-full opacity-[0.2]" style={{ background: "radial-gradient(closest-side, var(--signal), transparent)", filter: "blur(40px)" }} />
+      <div className="absolute -bottom-[26%] -right-[12%] h-[75%] min-h-[260px] w-[55%] min-w-[340px] rounded-full opacity-[0.22]" style={{ background: "radial-gradient(closest-side, var(--cooling), transparent)", filter: "blur(48px)" }} />
+    </div>
+  );
+}
+
+// Seeded so every render is identical.
 function rng(seed: number) {
   return () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-const STARS = (() => { const r = rng(7); return Array.from({ length: 70 }, () => ({ x: r() * 100, y: r() * 100, s: 6 + r() * 10, d: r() * 4, warm: r() > 0.35 })); })();
 
-export function Stars({ className = "" }: { className?: string }) {
-  return (
-    <div aria-hidden="true" className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
-      {STARS.map((st, i) => (
-        <svg key={i} viewBox="0 0 10 10" width={st.s} height={st.s} className="twinkle absolute"
-          style={{ left: `${st.x}%`, top: `${st.y}%`, animationDelay: `${st.d}s`, color: st.warm ? "#fbbf24" : "#c7d2fe" }}>
-          <path d="M5 0 L5.9 4.1 L10 5 L5.9 5.9 L5 10 L4.1 5.9 L0 5 L4.1 4.1 Z" fill="currentColor" />
-        </svg>
-      ))}
-    </div>
-  );
+/** Ambient particle dust: tiny 1-2px ink specks drifting slowly on one small canvas. Pauses when the tab is hidden or the canvas is off-screen; renders nothing under reduced motion. Parent must be `relative`. */
+export function Dust({ className = "", count = 110 }: { className?: string; count?: number }) {
+  const reduce = useReducedMotion();
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current, host = canvas?.parentElement;
+    if (reduce || !canvas || !host) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const n = Math.min(count, window.innerWidth < 768 ? 60 : 400);
+    const r = rng(11);
+    const dots = Array.from({ length: n }, () => ({ x: r(), y: r(), s: 0.5 + r() * 0.75, a: 0.15 + r() * 0.3, vx: (r() - 0.5) * 0.004, vy: -0.002 - r() * 0.006 }));
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    let w = 0, h = 0, raf = 0, last = 0, visible = true;
+    const size = () => { w = host.clientWidth; h = host.clientHeight; canvas.width = Math.max(1, Math.round(w * dpr)); canvas.height = Math.max(1, Math.round(h * dpr)); };
+    const draw = (t: number) => {
+      raf = 0;
+      const dt = Math.min(64, t - last || 16); last = t;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#f4f6fb";
+      for (const d of dots) {
+        d.x += d.vx * dt * 0.06; d.y += d.vy * dt * 0.06;
+        if (d.x < 0) d.x += 1; else if (d.x > 1) d.x -= 1;
+        if (d.y < 0) d.y += 1;
+        ctx.globalAlpha = d.a;
+        ctx.beginPath(); ctx.arc(d.x * w, d.y * h, d.s, 0, 6.2832); ctx.fill();
+      }
+      schedule();
+    };
+    function schedule() { if (!raf && visible && !document.hidden) raf = requestAnimationFrame(draw); }
+    const stop = () => { if (raf) cancelAnimationFrame(raf); raf = 0; last = 0; };
+    const onVis = () => (document.hidden ? stop() : schedule());
+    size();
+    const ro = new ResizeObserver(size); ro.observe(host);
+    const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) schedule(); else stop(); });
+    io.observe(host);
+    document.addEventListener("visibilitychange", onVis);
+    schedule();
+    return () => { stop(); ro.disconnect(); io.disconnect(); document.removeEventListener("visibilitychange", onVis); };
+  }, [reduce, count]);
+  if (reduce) return null;
+  return <canvas ref={ref} aria-hidden="true" className={`pointer-events-none absolute inset-0 h-full w-full ${className}`} />;
 }
 
-/** Big soft glowing blobs behind a section. */
-export function Aurora({ className = "" }: { className?: string }) {
-  return (
-    <div aria-hidden="true" className={`pointer-events-none absolute inset-x-0 bottom-0 h-[70%] overflow-hidden ${className}`}>
-      <div className="absolute -bottom-1/3 left-[-10%] h-[90%] w-[60%] rounded-full bg-[#2dd4bf] opacity-50 blur-[110px]" />
-      <div className="absolute -bottom-1/3 left-[30%] h-[80%] w-[50%] rounded-full bg-[#8b5cf6] opacity-50 blur-[120px]" />
-      <div className="absolute -bottom-1/3 right-[-10%] h-[90%] w-[50%] rounded-full bg-[#f97316] opacity-45 blur-[120px]" />
-    </div>
-  );
-}
+/** @deprecated Use Dust. Kept so unmigrated scenes still compile. */
+export const Stars = Dust;
+/** @deprecated Use LightLeaks. Kept so unmigrated scenes still compile. */
+export const Aurora = LightLeaks;
 
 // Diverging blue → white → red, the classic "warming stripes" palette.
 function stripe(t: number) {

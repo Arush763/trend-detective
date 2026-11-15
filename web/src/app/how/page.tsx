@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Card } from "@/components/ui";
+import { Card, Hud, SectionLabel } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "How it works",
@@ -44,78 +44,122 @@ const SOURCES: [string, string | null][] = [
   ["Coastlines: Natural Earth.", "https://www.naturalearthdata.com/"],
 ];
 
+const STEPS: [string, string][] = [
+  ["Get the data", "NASA's MERRA-2 record, every month from 1980 to 2025, for 9 things you can measure: air temperature, water vapor, rain and snow, evaporation, soil moisture, snow on the ground, river runoff, haze and dust."],
+  ["Remove the seasons", "Summer is always warmer than winter, so comparing July with January says nothing about change. We average each year, which cancels out the seasons."],
+  ["Measure the trend", "We use Sen's slope: the median of the slopes between every pair of years. One unusual year can't drag it the way it drags a normal best-fit line."],
+  ["Test it against luck", "A Mann-Kendall test asks how often pure noise would give a pattern this strong. We correct it for year-to-year memory, and for testing 184 place-and-variable pairs (or up to 12,960 map squares) at once."],
+  ["Try to break it", "We shuffle each place's years 2,000 times (each map square once, for the luck-test map), remove El Niño, and check whether a trend found in 1980–2002 kept going in 2003–2025."],
+  ["Give a plain verdict", "\"Real signal\" (survives the strict test), \"Not proven yet\" (might be luck), or \"No clear trend\" (can't be told apart from noise). Not proven isn't the same as false: with more years, some of these will become clear."],
+];
+
+const LIMITS: string[] = [
+  "MERRA-2 is a model kept in line with observations, not raw measurements. Different data sets disagree most in the Arctic, so our Arctic warming is noticeably lower than observation-based studies (about 0.44 vs 0.73 °C per decade).",
+  "Haze and dust trends can partly come from changes in which satellites were fed into MERRA-2 over the years, not only from the real air. For the Beijing haze case we checked this against NASA AERONET ground stations, which show the same rise and fall.",
+  "Trends are straight lines through yearly averages. A place that rose and then fell (like Beijing's haze) is better described by the \"holding up over time\" check.",
+  "Each map square is about 200 km wide, so small places like a single city are averaged with their surroundings.",
+];
+
+const INSTALL: [string, string][] = [
+  ["iPhone or iPad (Safari)", "Tap the Share button, then \"Add to Home Screen\"."],
+  ["Android (Chrome)", "Tap \"Install app\" in the menu at the top of this site, or the ⋮ menu, then \"Install app\"."],
+  ["Computer (Chrome or Edge)", "Click \"Install app\" in the top bar, or the install icon at the right end of the address bar."],
+];
+
+const H2 = "text-balance font-display text-[clamp(40px,6vw,84px)] leading-[0.95] tracking-[-0.03em]";
+
+// Editorial chapter: label + big headline on the left, short body offset to the right column on desktop.
+function Chapter({ id, label, title, intro, children }: { id?: string; label: string; title: React.ReactNode; intro?: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="grid gap-10 md:grid-cols-12 md:gap-y-14">
+      <div className="flex flex-col gap-5 md:col-span-9">
+        <SectionLabel>{label}</SectionLabel>
+        <h2 className={H2}>{title}</h2>
+      </div>
+      {intro && <p className="max-w-[60ch] text-pretty text-lg leading-relaxed text-[var(--ink-dim)] md:col-span-5 md:col-start-6">{intro}</p>}
+      <div className="md:col-span-12">{children}</div>
+    </section>
+  );
+}
+
 export default function How() {
   return (
-    <div className="flex flex-col gap-12">
-      <header className="flex max-w-[760px] flex-col gap-3">
-        <h1 className="text-balance font-display text-[clamp(36px,4.5vw,56px)] font-light leading-[1.05] tracking-tight">How it works</h1>
-        <p className="text-lg leading-relaxed text-[var(--soft)]">
+    <div className="flex flex-col gap-24 md:gap-40">
+      <header className="grid gap-8 md:grid-cols-12">
+        <div className="flex flex-col gap-5 md:col-span-10">
+          <SectionLabel>HOW IT WORKS</SectionLabel>
+          <h1 className="font-display text-[clamp(48px,8vw,112px)] leading-[0.95] tracking-[-0.03em]">
+            How it
+            <span className="block pl-[0.6em]">works</span>
+          </h1>
+        </div>
+        <p className="max-w-[60ch] text-pretty text-lg leading-relaxed text-[var(--ink-dim)] md:col-span-5 md:col-start-6">
           Investors know the trap: test enough stocks and some look like winners by pure luck. Earth data has the same trap. Here is how we avoid it.
         </p>
       </header>
 
-      <section className="grid gap-5 md:grid-cols-2">
-        {[
-          ["1. Get the data", "NASA's MERRA-2 record, every month from 1980 to 2025, for 9 things you can measure: air temperature, water vapor, rain and snow, evaporation, soil moisture, snow on the ground, river runoff, haze and dust."],
-          ["2. Remove the seasons", "Summer is always warmer than winter, so comparing July with January says nothing about change. We average each year, which cancels out the seasons."],
-          ["3. Measure the trend", "We use Sen's slope: the median of the slopes between every pair of years. One unusual year can't drag it the way it drags a normal best-fit line."],
-          ["4. Test it against luck", "A Mann-Kendall test asks how often pure noise would give a pattern this strong. We correct it for year-to-year memory, and for testing 184 place-and-variable pairs (or up to 12,960 map squares) at once."],
-          ["5. Try to break it", "We shuffle each place's years 2,000 times (each map square once, for the luck-test map), remove El Niño, and check whether a trend found in 1980–2002 kept going in 2003–2025."],
-          ["6. Give a plain verdict", "\"Real signal\" (survives the strict test), \"Not proven yet\" (might be luck), or \"No clear trend\" (can't be told apart from noise). Not proven isn't the same as false: with more years, some of these will become clear."],
-        ].map(([t, d]) => (
-          <Card key={t} className="flex flex-col gap-2.5">
-            <h2 className="font-display text-lg font-normal">{t}</h2>
-            <p className="text-[15px] leading-relaxed text-[var(--soft)]">{d}</p>
-          </Card>
-        ))}
-      </section>
+      <Chapter label="METHOD" title={<>Six steps<span className="block pl-[0.6em]">to a verdict</span></>}>
+        <ol className="m-0 grid list-none gap-5 p-0 md:grid-cols-2">
+          {STEPS.map(([t, d], i) => (
+            <li key={t}>
+              <Card className="flex h-full flex-col gap-3">
+                <Hud className="num text-[var(--signal)]">{String(i + 1).padStart(2, "0")}</Hud>
+                <h3 className="font-display text-2xl tracking-[-0.01em]">{t}</h3>
+                <p className="text-[15px] leading-relaxed text-[var(--ink-dim)]">{d}</p>
+              </Card>
+            </li>
+          ))}
+        </ol>
+      </Chapter>
 
-      <section className="flex flex-col gap-5">
-        <h2 className="font-display text-[28px] font-light">Words and numbers on this site</h2>
-        <dl className="m-0 grid gap-x-10 gap-y-5 md:grid-cols-2">
+      <Chapter label="GLOSSARY" title={<>Words and numbers<span className="block pl-[0.6em]">on this site</span></>}>
+        <dl className="m-0 grid gap-x-12 gap-y-7 md:grid-cols-2">
           {GLOSSARY.map(([t, d]) => (
-            <div key={t} className="border-b border-[var(--line)] pb-4">
-              <dt className="font-semibold">{t}</dt>
-              <dd className="ml-0 mt-1 text-[15px] leading-relaxed text-[var(--dim)]">{d}</dd>
+            <div key={t} className="border-t border-[var(--glass-stroke)] pt-4">
+              <dt className="hud text-[var(--ink)]">{t}</dt>
+              <dd className="ml-0 mt-2 text-[15px] leading-relaxed text-[var(--ink-dim)]">{d}</dd>
             </div>
           ))}
         </dl>
-      </section>
+      </Chapter>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="font-display text-[28px] font-light">What to keep in mind</h2>
-        <ul className="m-0 flex flex-col gap-2.5 pl-5 text-[15px] leading-relaxed text-[var(--soft)]">
-          <li>MERRA-2 is a model kept in line with observations, not raw measurements. Different data sets disagree most in the Arctic, so our Arctic warming is noticeably lower than observation-based studies (about 0.44 vs 0.73 °C per decade).</li>
-          <li>Haze and dust trends can partly come from changes in which satellites were fed into MERRA-2 over the years, not only from the real air. For the Beijing haze case we checked this against NASA AERONET ground stations, which show the same rise and fall.</li>
-          <li>Trends are straight lines through yearly averages. A place that rose and then fell (like Beijing&apos;s haze) is better described by the &quot;holding up over time&quot; check.</li>
-          <li>Each map square is about 200 km wide, so small places like a single city are averaged with their surroundings.</li>
+      <Chapter label="LIMITS" title={<>What to keep<span className="block pl-[0.6em]">in mind</span></>}>
+        <ul className="m-0 grid list-none gap-0 p-0 md:grid-cols-12">
+          {LIMITS.map((t, i) => (
+            <li key={i} className="flex max-w-[60ch] gap-4 border-t border-[var(--glass-stroke)] py-5 text-[15px] leading-relaxed text-[var(--ink-dim)] md:col-span-7 md:col-start-6">
+              <Hud className="num shrink-0 pt-1 text-[var(--ink)]">{String(i + 1).padStart(2, "0")}</Hud>
+              <span>{t}</span>
+            </li>
+          ))}
         </ul>
-      </section>
+      </Chapter>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="font-display text-[28px] font-light">Use it as an app, even offline</h2>
-        <p className="max-w-[760px] text-[15px] leading-relaxed text-[var(--soft)]">
-          Trend Detective installs like an app. Once it&apos;s installed (or you&apos;ve visited once), every page and every place&apos;s NASA data is saved on your device, so it works in a classroom with no Wi-Fi.
-        </p>
+      <Chapter
+        label="OFFLINE"
+        title={<>Use it as an app,<span className="block pl-[0.6em]">even offline</span></>}
+        intro="Trend Detective installs like an app. Once it's installed (or you've visited once), every page and every place's NASA data is saved on your device, so it works in a classroom with no Wi-Fi."
+      >
         <div className="grid gap-4 md:grid-cols-3">
-          {[
-            ["iPhone or iPad (Safari)", "Tap the Share button, then \"Add to Home Screen\"."],
-            ["Android (Chrome)", "Tap \"Install app\" in the menu at the top of this site, or the ⋮ menu, then \"Install app\"."],
-            ["Computer (Chrome or Edge)", "Click \"Install app\" in the top bar, or the install icon at the right end of the address bar."],
-          ].map(([t, d]) => (
+          {INSTALL.map(([t, d]) => (
             <Card key={t} className="flex flex-col gap-2">
-              <h3 className="font-display text-lg font-normal">{t}</h3>
-              <p className="text-[15px] leading-relaxed text-[var(--dim)]">{d}</p>
+              <h3 className="font-display text-xl">{t}</h3>
+              <p className="text-[15px] leading-relaxed text-[var(--ink-dim)]">{d}</p>
             </Card>
           ))}
         </div>
-      </section>
+      </Chapter>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-display text-[28px] font-light">Sources</h2>
-        <ul className="m-0 flex flex-col gap-1.5 pl-5 text-sm leading-relaxed text-[var(--dim)]">
-          {SOURCES.map(([text, href]) => (
-            <li key={text}>{href ? <a href={href} target="_blank" rel="noopener noreferrer">{text}</a> : text}</li>
+      <section id="sources" className="paper grid gap-10 rounded-[28px] p-6 sm:p-10 md:p-14">
+        <div className="flex flex-col gap-5">
+          <p className="hud text-[var(--ink-paper-dim)]"><span className="opacity-60">{"//////"}</span> SOURCES</p>
+          <h2 className={H2}>Sources</h2>
+        </div>
+        <ul className="m-0 flex list-none flex-col gap-0 p-0">
+          {SOURCES.map(([text, href], i) => (
+            <li key={text} className="flex gap-4 border-t border-[var(--ink-paper-dim)]/25 py-3 font-mono text-[12.5px] leading-relaxed text-[var(--ink-paper-dim)]">
+              <span className="num shrink-0 opacity-70">{String(i + 1).padStart(2, "0")}</span>
+              {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="text-[var(--signal-ink)] underline underline-offset-4">{text}</a> : <span>{text}</span>}
+            </li>
           ))}
         </ul>
       </section>
