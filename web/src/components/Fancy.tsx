@@ -69,9 +69,9 @@ export const Stars = Dust;
 /** @deprecated Use LightLeaks. Kept so unmigrated scenes still compile. */
 export const Aurora = LightLeaks;
 
-// Warming stripes in the site's two data hues: navy for cooler years → ash for warmer years.
+// Warming stripes in the site's diverging data colours: blue for cooler years → orange for warmer years.
 function stripe(t: number) {
-  const stops = [[22, 32, 70], [40, 62, 140], [82, 113, 206], [120, 132, 168], [128, 127, 123], [170, 168, 162], [210, 208, 202], [240, 238, 233]];
+  const stops = [[22, 40, 96], [45, 90, 190], [91, 147, 255], [150, 170, 210], [200, 175, 150], [255, 170, 110], [255, 138, 61], [190, 80, 20]];
   const x = Math.max(0, Math.min(1, t)) * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(x)), f = x - i;
   return `rgb(${stops[i].map((c, k) => Math.round(c + (stops[i + 1][k] - c) * f)).join(",")})`;
 }
@@ -83,7 +83,7 @@ export function WarmingStripes({ className = "" }: { className?: string }) {
   if (!y) return <div className={className} />;
   const lo = Math.min(...y), hi = Math.max(...y);
   return (
-    <div className={`flex ${className}`} role="img" aria-label={`Warming stripes: global average air temperature each year from 1980 (left) to 2025 (right), from NASA MERRA-2. Blue is cooler, light is warmer.`}>
+    <div className={`flex ${className}`} role="img" aria-label={`Warming stripes: global average air temperature each year from 1980 (left) to 2025 (right), from NASA MERRA-2. Blue is cooler, orange is warmer.`}>
       {y.map((v, i) => <div key={i} className="h-full flex-1" style={{ background: stripe((v - lo) / (hi - lo)) }} />)}
     </div>
   );

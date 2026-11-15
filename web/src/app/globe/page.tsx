@@ -61,13 +61,14 @@ function YearKey({ year }: { year: number }) {
 type Anom = { a: Int8Array; years: number[]; step: number; nodata: number; nCells: number };
 
 /** Readable 2D map of the same step, for devices without WebGL or visitors who ask for reduced motion. Click a square for its numbers. */
-function FlatFallback({ grid, mode, enso, onPick }: { grid: Grid | null; mode: Mode; enso: boolean; onPick: (p: { lat: number; lng: number }) => void }) {
+function FlatFallback({ grid, mode, enso, onPick, loading }: { grid: Grid | null; mode: Mode; enso: boolean; onPick: (p: { lat: number; lng: number }) => void; loading: string }) {
   const [c, setC] = useState<Path2D | null | undefined>(undefined);
   useEffect(() => { coast().then(setC); }, []);
   const src = useMemo(() => (grid && c !== undefined ? flatMap(grid, mode, enso, c) : null), [grid, mode, enso, c]);
   return (
     // Sits in the space the overlays leave free: under the chips, beside (desktop) or above (phone) the step cards.
     <div className="absolute inset-x-4 bottom-[150px] top-[240px] flex items-center justify-center sm:bottom-6 sm:left-[408px] sm:right-6 sm:top-[220px]">
+      {!src && <div role="status"><p className="hud nav-glass flex items-center gap-2 rounded-full px-4 py-2 !text-[var(--ink)]"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--ink)] motion-safe:animate-pulse" />{loading}</p></div>}
       {src && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt="Flat world map of the trends at this step" className="max-h-full w-auto max-w-full cursor-crosshair rounded-[var(--radius-md)] border border-hairline object-contain"
@@ -140,7 +141,15 @@ export default function GlobePage() {
   }, [pick, place, g, v, mode, enso]);
 
   if (err) return <p className="text-false-alarm">Could not load the data ({err}). Try reloading the page.</p>;
-  if (!meta) return <p className="text-ink-dim" role="status">Loading NASA data…</p>;
+  // Same full-screen frame from the first paint, so a slow connection shows a loading globe page, not an empty one.
+  // 12,960 = the 90 x 144 map grid (its size, not a result).
+  if (!meta) return (
+    <div className="-mt-24">
+      <section className="bleed relative flex h-[100svh] min-h-[560px] items-center justify-center" aria-label="The globe">
+        <p role="status" className="hud nav-glass flex items-center gap-2 rounded-full px-4 py-2 !text-[var(--ink)]"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--ink)] motion-safe:animate-pulse" />Loading 12,960 places…</p>
+      </section>
+    </div>
+  );
   const s = meta.grid_summary[v];
   const count = (m: Mode) => ({ naive: s.naive_sig, noise: s.noise_sig, real: enso ? s.enso_real_sig : s.real_sig }[m]);
   const choose = (k: string) => { if (k !== "T2M") stopYears(); setV(k); window.history.replaceState(null, "", `/globe?v=${k}`); };
@@ -168,14 +177,15 @@ export default function GlobePage() {
   const active = STEPS.find((x) => x.mode === mode)!;
   return (
     <div className="-mt-24 flex flex-col gap-8">
-      <section className="bleed relative h-[100svh] min-h-[560px] overflow-hidden" aria-label="The globe">
+      {/* overflow-clip, not hidden: hidden would make the section a scroll container and break the sticky title. */}
+      <section className="bleed relative h-[100svh] min-h-[560px] overflow-clip" aria-label="The globe">
         {flat
-          ? <FlatFallback grid={g} mode={mode} enso={enso} onPick={pickCell} />
-          : <ColumnGlobe grid={g} lat={meta.grid.lat} lon={meta.grid.lon} mode={mode} enso={enso} year={year} target={target} onPick={pickCell}
+          ? <FlatFallback grid={g} mode={mode} enso={enso} onPick={pickCell} loading={`Loading ${n0(s.cells)} places…`} />
+          : <ColumnGlobe grid={g} lat={meta.grid.lat} lon={meta.grid.lon} mode={mode} enso={enso} year={year} target={target} onPick={pickCell} loading={`Loading ${n0(s.cells)} places…`}
               label={`Globe of ${NICE[v].short} trends as columns: ${active.step}. ${n0(count(mode))} of ${n0(s.cells)} places marked. Click a square, or use "Fly to", for its numbers.`} />}
 
-        {/* Top: what to map, and where to fly */}
-        <div className="pointer-events-none absolute inset-x-0 top-[76px] z-10 flex flex-col gap-3 px-4 sm:px-6">
+        {/* Top: what to map, and where to fly. Sticky, so it stays clear of the header even if the page scrolls. */}
+        <div className="pointer-events-none sticky top-[76px] z-10 flex flex-col gap-3 px-4 sm:px-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="flex flex-col gap-1">
               <SectionLabel>The globe</SectionLabel>

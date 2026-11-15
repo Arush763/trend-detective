@@ -65,7 +65,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <div className="relative h-[200px]">
               <WarmingStripes className="absolute inset-0 blur-[14px] [mask-image:linear-gradient(to_bottom,transparent,black_55%)] [transform:scale(1.08)]" />
               <p className="hud absolute inset-x-4 bottom-3 mx-auto w-fit max-w-full rounded-full border border-hairline bg-ground-raised px-3 py-1.5 text-center text-ink">
-                Warming stripes · NASA global air temperature, 1980–2025 · blue cooler, light warmer
+                Warming stripes · NASA global air temperature, 1980–2025 · blue cooler, orange warmer
               </p>
             </div>
           </footer>

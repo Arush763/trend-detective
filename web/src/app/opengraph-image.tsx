@@ -5,7 +5,7 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 // Warming-stripe colours, blue → red, for the band along the bottom.
-const STRIPES = ["#162046", "#283e8c", "#5271ce", "#7884a8", "#807f7b", "#aaa8a2", "#d2d0ca", "#f0eee9"];
+const STRIPES = ["#162860", "#2d5abe", "#5b93ff", "#96aad2", "#c8af96", "#ffaa6e", "#ff8a3d", "#be5014"];
 
 export default function Image() {
   return new ImageResponse(
