@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { DEMOS, get, type Grid, type Meta, type Region } from "@/lib/data";
-import { CasesScene, ChecksScene, HeroScene, MissionScene, NoiseScene, SmoothScroll } from "@/components/Scenes";
+import { CasesScene, ChecksScene, EndBeat, HeroScene, MissionScene, NoiseScene, SmoothScroll } from "@/components/Scenes";
 
 // The landing page is five scroll-scrubbed scenes: each pins to the screen while you scroll through it.
 export default function Landing() {
@@ -16,14 +16,17 @@ export default function Landing() {
     DEMOS.forEach((d) => get(`regions/${d.place}.json`).then((r) => setCases((c) => ({ ...c, [d.id]: r }))).catch(() => {}));
   }, []);
 
+  // -mt-24 cancels main's pt-24 so the pinned hero stage fills the screen from the very top (its card sits below the floating nav);
+  // -mb-20 cancels main's bottom padding so the end beat meets the footer.
   return (
-    <div className="-mb-20 -mt-8">
+    <div className="-mb-20 -mt-24">
       <SmoothScroll />
       <HeroScene grid={grid} cells={meta?.grid_summary.T2M.cells} />
       <MissionScene meta={meta} />
       <NoiseScene meta={meta} grid={grid} />
       <CasesScene cases={cases} />
       <ChecksScene />
+      <EndBeat />
     </div>
   );
 }

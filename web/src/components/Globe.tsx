@@ -1,16 +1,18 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { HudCallout } from "@/components/ui";
 import type { Grid } from "@/lib/data";
 
 export type Mode = "naive" | "noise" | "real";
-export const FLAT = [78, 86, 104];       // tested, but no trend passed this test (neutral grey)
+// Data colours as RGB triples (the texture is painted on a canvas, which cannot read CSS variables).
+export const FLAT = [52, 58, 72];        // tested, but no trend passed this test: --noise darkened so it reads as background
 export const NODATA = [13, 20, 40];      // not measured here, e.g. ocean for land-only variables
-export const LUCK = [251, 191, 36];      // a false alarm on shuffled data (its direction means nothing)
-// Ramps run dim → bright. Heat-like variables: orange up, blue down. Water variables: teal wetter, brown drier.
-const WARM = [[90, 52, 30], [249, 115, 22], [254, 215, 170]];
-const COOL = [[30, 50, 100], [59, 130, 246], [191, 219, 254]];
-const WET = [[18, 70, 72], [20, 184, 166], [153, 246, 228]];
+export const LUCK = [232, 121, 249];     // --false-alarm: a false alarm on shuffled data (its direction means nothing)
+// Ramps run dim → bright. Heat-like variables: --warming up, --cooling down. Water variables: wetter = the cooling blue, drier = brown.
+const WARM = [[96, 52, 28], [255, 138, 61], [255, 220, 185]];
+const COOL = [[28, 52, 96], [74, 163, 255], [200, 226, 255]];
+const WET = COOL;
 const DRY = [[80, 50, 20], [180, 110, 40], [245, 205, 145]];
 const WATER = new Set(["TQV", "PRECTOTCORR", "EVAP", "GWETROOT", "SNOMAS", "RUNOFF"]);
 const ramps = (v: string) => (WATER.has(v) ? { up: WET, down: DRY } : { up: WARM, down: COOL });
@@ -19,7 +21,7 @@ const lerp = (a: number[], b: number[], t: number) => a.map((x, i) => Math.round
 const ramp = (stops: number[][], t: number) => (t < 0.5 ? lerp(stops[0], stops[1], t * 2) : lerp(stops[1], stops[2], (t - 0.5) * 2));
 export const rgb = (c: number[]) => `rgb(${c.join(",")})`;
 /** The colour for a rising (+1) or falling (−1) trend of this variable, at full strength. */
-export const trendColor = (v: string, sign: number) => (sign === 0 ? "var(--soft)" : rgb(ramp(sign > 0 ? ramps(v).up : ramps(v).down, 0.6)));
+export const trendColor = (v: string, sign: number) => (sign === 0 ? "var(--ink-dim)" : rgb(ramp(sign > 0 ? ramps(v).up : ramps(v).down, 0.6)));
 const rampCss = (stops: number[][]) => `linear-gradient(90deg, ${[T0, (T0 + 1) / 2, 1].map((t) => rgb(ramp(stops, t))).join(",")})`;
 
 let coastPromise: Promise<Path2D | null> | null = null;
@@ -90,7 +92,7 @@ function paint(grid: Grid, mode: Mode, enso: boolean, coastP: Path2D | null) {
   if (coastP) {
     ctx.save();
     ctx.scale(W / 360, H / 180);
-    ctx.strokeStyle = "rgba(232,238,252,0.8)";
+    ctx.strokeStyle = "rgba(238,240,248,0.8)";
     ctx.lineWidth = 0.25;
     ctx.stroke(coastP);
     ctx.restore();
@@ -113,13 +115,36 @@ export function cellAt(grid: Grid, lat: number[], lon: number[], p: { lat: numbe
 export type Pick = { k: number; lat: number; lon: number };
 
 // Stable accessors, so the globe doesn't rebuild its layers on every render.
-const ptLat = (p: number[]) => p[0], ptLng = (p: number[]) => p[1], pathCol = () => "#5eead4";
-const ringCol = () => (t: number) => `rgba(255,255,255,${1 - t})`;
+const ptLat = (p: number[]) => p[0], ptLng = (p: number[]) => p[1], pathCol = () => "rgb(94,234,212)"; // --signal
+const ringCol = () => (t: number) => `rgba(244,246,251,${1 - t})`;
+const ATMOSPHERE = "#4aa3ff"; // --cooling, a soft tint (WebGL cannot read CSS variables)
 
-export function Globe({ grid, mode, enso = false, spin = false, zoom = true, label, focus, box, onPick, pick }: {
+const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** Great-circle angle between two lat/lng points, in degrees. */
+const arc = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+  const r = Math.PI / 180, c = Math.sin(a.lat * r) * Math.sin(b.lat * r) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.cos((a.lng - b.lng) * r);
+  return Math.acos(Math.max(-1, Math.min(1, c))) / r;
+};
+/** True when a surface point faces the camera (inside the horizon circle of the current view). */
+const facing = (g: any, lat: number, lng: number) => {
+  const pov = g.pointOfView();
+  return arc(pov, { lat, lng }) < ((Math.acos(1 / (1 + pov.altitude)) * 180) / Math.PI) * 0.96;
+};
+/** Latitude / longitude of a grid square's centre, from its row and column. */
+const cellLatLng = (grid: Grid, k: number) => {
+  const [ny, nx] = grid.shape, r = Math.floor(k / nx), x = k % nx;
+  return { lat: -90 + (r * 180) / (ny - 1), lng: -180 + (x * 360) / nx };
+};
+
+/**
+ * Optional props: `hud` = mono label lines drawn with a leader line from the picked square (off by default);
+ * `dissolveFromNoise` = on a Noise → Real change, the false-alarm squares dissolve into drifting particles (off by default).
+ */
+export function Globe({ grid, mode, enso = false, spin = false, zoom = true, label, focus, box, onPick, pick, hud, dissolveFromNoise = false }: {
   grid: Grid | null; mode: Mode; enso?: boolean; spin?: boolean; zoom?: boolean; label: string;
   focus?: { lat: number; lng: number; altitude: number }; box?: number[];
   onPick?: (p: { lat: number; lng: number }) => void; pick?: Pick | null;
+  hud?: string[]; dissolveFromNoise?: boolean;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const globe = useRef<any>(null);
@@ -127,6 +152,8 @@ export function Globe({ grid, mode, enso = false, spin = false, zoom = true, lab
   const [G, setG] = useState<any>(null);
   const [size, setSize] = useState(0);
   const [coastP, setCoastP] = useState<Path2D | null | undefined>(undefined);
+  const [spot, setSpot] = useState<{ x: number; y: number; vis: boolean } | null>(null);
+  const prevMode = useRef<Mode>(mode);
 
   useEffect(() => {
     import("react-globe.gl").then((m) => setG(() => m.default)).catch(() => {});
@@ -148,8 +175,89 @@ export function Globe({ grid, mode, enso = false, spin = false, zoom = true, lab
   // Give the WebGL context back on unmount; browsers only allow a handful at once.
   useEffect(() => () => renderer.current?.forceContextLoss?.(), []);
   useEffect(() => { if (focus && globe.current) globe.current.pointOfView(focus, 1200); }, [focus]);
+  // Freeze the slow auto-rotate while the tab is hidden.
+  useEffect(() => {
+    const onVis = () => {
+      const c = globe.current?.controls?.();
+      if (c) c.autoRotate = spin && !document.hidden && !reducedMotion();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [spin]);
+
+  // HUD annotation: follow the picked square's screen position while the globe rotates or zooms.
+  const hudOn = !!hud && !!pick;
+  const pLat = pick?.lat, pLon = pick?.lon;
+  useEffect(() => {
+    if (!hudOn || pLat == null || pLon == null) return;
+    let raf = 0, last = { x: -1e9, y: -1e9, vis: false };
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const g = globe.current;
+      if (!g || document.hidden) return;
+      try {
+        const { x, y } = g.getScreenCoords(pLat, pLon, 0);
+        const vis = facing(g, pLat, pLon);
+        if (Math.abs(x - last.x) > 0.5 || Math.abs(y - last.y) > 0.5 || vis !== last.vis) {
+          last = { x, y, vis };
+          setSpot(last);
+        }
+      } catch { /* globe not ready yet */ }
+    };
+    tick();
+    return () => { cancelAnimationFrame(raf); setSpot(null); };
+  }, [hudOn, pLat, pLon, G]);
 
   const texture = useMemo(() => (grid && coastP !== undefined ? paint(grid, mode, enso, coastP) : null), [grid, mode, enso, coastP]);
+
+  // Signature moment: switching Noise → Real, the false alarms dissolve into particles while the real signals stay lit.
+  useEffect(() => {
+    const prev = prevMode.current;
+    prevMode.current = mode;
+    if (!dissolveFromNoise || prev !== "noise" || mode !== "real" || !grid || !wrap.current) return;
+    const g = globe.current, host = wrap.current;
+    if (!g || size <= 0 || reducedMotion() || document.hidden) return;
+    try {
+      const want = size < 500 ? 250 : 600;
+      const cand: number[] = [];
+      for (let k = 0; k < grid.p_noise.length; k++) {
+        if (slopeOf(grid, k, "real", enso) != null && grid.p_noise[k] < 0.05 && !isSig(grid, k, "real", enso)) cand.push(k);
+      }
+      if (!cand.length) return;
+      const step = Math.max(1, cand.length / want), pts: { x: number; y: number; vx: number; vy: number; r: number }[] = [];
+      const cx = size / 2, cy = size / 2;
+      for (let i = 0; i < cand.length && pts.length < want; i += step) {
+        const { lat, lng } = cellLatLng(grid, cand[Math.floor(i)]);
+        if (!facing(g, lat, lng)) continue;
+        const { x, y } = g.getScreenCoords(lat, lng, 0);
+        const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1, sp = 10 + Math.random() * 40;
+        pts.push({ x, y, vx: (dx / d) * sp + (Math.random() - 0.5) * 20, vy: (dy / d) * sp - 12 - Math.random() * 28, r: 1 + Math.random() * 1.6 });
+      }
+      if (!pts.length) return;
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(size * dpr); cv.height = Math.round(size * dpr);
+      cv.setAttribute("aria-hidden", "true");
+      cv.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none";
+      host.appendChild(cv);
+      const ctx = cv.getContext("2d");
+      if (!ctx) { cv.remove(); return; }
+      ctx.scale(dpr, dpr);
+      ctx.fillStyle = rgb(LUCK);
+      const T = 1100, t0 = performance.now();
+      let raf = 0;
+      const frame = (now: number) => {
+        const t = Math.min(1, (now - t0) / T), s = (now - t0) / 1000;
+        ctx.clearRect(0, 0, size, size);
+        ctx.globalAlpha = (1 - t) * (1 - t);
+        for (const p of pts) { ctx.beginPath(); ctx.arc(p.x + p.vx * s, p.y + p.vy * s, p.r * (1 - 0.5 * t), 0, 6.2832); ctx.fill(); }
+        if (t < 1 && !document.hidden) raf = requestAnimationFrame(frame); else cv.remove();
+      };
+      raf = requestAnimationFrame(frame);
+      return () => { cancelAnimationFrame(raf); cv.remove(); };
+    } catch { /* getScreenCoords unavailable: skip the effect */ }
+  }, [mode, dissolveFromNoise, grid, enso, size]);
+
   // Region outline: the box's four edges, densified so they follow the curve of the globe.
   const paths = useMemo(() => {
     if (!box) return [];
@@ -165,26 +273,39 @@ export function Globe({ grid, mode, enso = false, spin = false, zoom = true, lab
     const g = globe.current;
     if (!g) return;
     renderer.current = g.renderer();
-    if (spin) renderer.current.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1)); // the big hero globe: fewer pixels
+    renderer.current.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1)); // cap the pixel density on every globe
     g.pointOfView(focus ?? { lat: 42, lng: -25, altitude: size < 500 ? 1.75 : 2.1 }, 0);
     const c = g.controls();
-    c.autoRotate = spin && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    c.autoRotate = spin && !document.hidden && !reducedMotion();
     c.autoRotateSpeed = 0.5;
     c.enableZoom = zoom;
     c.minDistance = 130;
   };
 
+  const callout = (() => {
+    if (!hud || !pick || !spot || size <= 0) return null;
+    const right = spot.x > size * 0.55, w = 210;
+    const tx = right ? Math.max(w, spot.x - 56) : Math.min(size - w, spot.x + 56);
+    const ty = Math.max(24, Math.min(size - 24 - hud.length * 14, spot.y - 48));
+    return (
+      <svg aria-hidden="true" width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="pointer-events-none absolute inset-0 overflow-visible">
+        <HudCallout key={pick.k} from={[spot.x, spot.y]} to={[tx, ty]} lines={hud} align={right ? "right" : "left"} show={spot.vis} />
+      </svg>
+    );
+  })();
+
   return (
     <div ref={wrap} className="relative aspect-square w-full" role="img" aria-label={label}>
-      {(!G || !texture) && <div className="absolute inset-[6%] rounded-full bg-gradient-to-br from-[#1b2a52] to-[#070c1f] motion-safe:animate-pulse" />}
+      {(!G || !texture) && <div className="absolute inset-[6%] rounded-full bg-gradient-to-br from-night to-void motion-safe:animate-pulse" />}
       {G && texture && size > 0 && (
         <G ref={globe} width={size} height={size} backgroundColor="rgba(0,0,0,0)"
-          globeImageUrl={texture} showAtmosphere atmosphereColor="#5eead4" atmosphereAltitude={0.16}
+          globeImageUrl={texture} showAtmosphere atmosphereColor={ATMOSPHERE} atmosphereAltitude={0.16}
           pathsData={paths} pathPoints="pts" pathPointLat={ptLat} pathPointLng={ptLng}
           pathColor={pathCol} pathStroke={2} pathTransitionDuration={0}
           ringsData={rings} ringColor={ringCol} ringMaxRadius={4} ringPropagationSpeed={3} ringRepeatPeriod={900}
           onGlobeClick={onPick} onGlobeReady={ready} animateIn={false} />
       )}
+      {callout}
     </div>
   );
 }
@@ -192,20 +313,20 @@ export function Globe({ grid, mode, enso = false, spin = false, zoom = true, lab
 /** Colour key with real numbers, used under every globe. */
 export function GlobeScale({ grid, units, mode, enso = false }: { grid: Grid | null; units: string; mode: Mode; enso?: boolean }) {
   if (!grid) return null;
-  const sw = (c: number[], extra = "") => <span className={`inline-block h-2.5 w-2.5 rounded-sm align-middle ${extra}`} style={{ background: rgb(c), border: "1px solid rgba(255,255,255,.3)" }} />;
+  const sw = (c: number[]) => <span className="inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: rgb(c), border: "1px solid var(--glass-stroke)" }} />;
   const greyNote = <>{sw(FLAT)} = tested, no trend passed · {sw(NODATA)} = not measured here.</>;
   if (mode === "noise") {
     return (
-      <div className="flex w-full max-w-[560px] flex-col gap-2 text-center text-[13px] text-[var(--dim)]">
-        <p><span className="mr-1.5 inline-block h-3 w-6 rounded-full align-middle" style={{ background: rgb(LUCK) }} />False alarm: shuffled data with no real trend still passed the simple test here.</p>
-        <p className="text-[12px] text-[var(--muted)]">{greyNote}</p>
+      <div className="flex w-full max-w-[560px] flex-col gap-2 text-center text-[13px] text-ink-dim">
+        <p><span className="mr-1.5 inline-block h-3 w-6 rounded-full align-middle" style={{ background: rgb(LUCK) }} /><span className="hud mr-1.5 text-false-alarm">False alarm</span>shuffled data with no real trend still passed the simple test here.</p>
+        <p className="text-[12px]">{greyNote}</p>
       </div>
     );
   }
   const max = +scaleOf(grid).toPrecision(2), r = ramps(grid.var), water = WATER.has(grid.var);
   return (
-    <div className="flex w-full max-w-[560px] flex-col gap-2 text-[13px] text-[var(--dim)]">
-      <div className="flex items-center gap-3">
+    <div className="flex w-full max-w-[560px] flex-col gap-2 text-[13px] text-ink-dim">
+      <div className="hud flex items-center gap-3">
         <span className="w-20 text-right">{water ? "drier / less" : "falling"}</span>
         <div className="flex h-3 flex-1 overflow-hidden rounded-full" aria-hidden="true">
           <div className="h-full flex-1" style={{ background: rampCss(r.down), transform: "scaleX(-1)" }} />
@@ -214,11 +335,11 @@ export function GlobeScale({ grid, units, mode, enso = false }: { grid: Grid | n
         </div>
         <span className="w-20">{water ? "wetter / more" : "rising"}</span>
       </div>
-      <div className="flex justify-between px-[92px] text-[12px]">
+      <div className="hud num flex justify-between px-[92px]">
         <span>≤ −{max}</span><span>no trend passed</span><span>≥ +{max}</span>
       </div>
-      <p className="text-center text-[12px] text-[var(--muted)]">
-        {units} per decade{enso && mode === "real" ? ", El Niño removed" : ""}. Brighter = bigger change. Only squares that pass {mode === "real" ? "the strict test" : "the simple test"} are colored.
+      <p className="text-center text-[12px]">
+        <span className="num font-mono">{units}</span> per decade{enso && mode === "real" ? ", El Niño removed" : ""}. Brighter = bigger change. Only squares that pass {mode === "real" ? "the strict test" : "the simple test"} are colored.
         {" "}{greyNote}
       </p>
     </div>

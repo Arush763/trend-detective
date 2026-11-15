@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { fmt } from "@/lib/data";
+import { HudCallout } from "@/components/ui";
 
 type Props = {
   years: number[];
@@ -15,9 +16,15 @@ type Props = {
   title: string;
   /** Extra yearly series drawn on top, e.g. ground-station observations: [year, value] pairs (gaps allowed). */
   overlays?: { label: string; color: string; points: [number, number][] }[];
+  /** HUD leader-line callouts at the first value, the last value and the most extreme year. Default true. */
+  annotate?: boolean;
+  /** CSS color of the trend line and its range band. Default: --warming if rising, --cooling if falling. */
+  trendColor?: string;
 };
 
 const R = 18, T = 40, B = 34;
+const MONO = "var(--font-jetbrains), ui-monospace, monospace";
+const axis = { fontFamily: MONO, fontSize: 11, fill: "var(--ink-dim)", fontVariantNumeric: "tabular-nums" } as const;
 
 // Nice round axis ticks between lo and hi.
 function ticks(lo: number, hi: number, n = 5) {
@@ -29,9 +36,10 @@ function ticks(lo: number, hi: number, n = 5) {
 }
 const median = (a: number[]) => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
-export function TrendChart({ years, y, perYear, slope, ci, intercept, split, units, title, overlays = [] }: Props) {
+export function TrendChart({ years, y, perYear, slope, ci, intercept, split, units, title, overlays = [], annotate = true, trendColor }: Props) {
+  const reduce = useReducedMotion();
   const [hover, setHover] = useState<number | null>(null);
-  // Draw at the real on-screen width, so the 12px labels stay 12px on a phone instead of shrinking with a fixed viewBox.
+  // Draw at the real on-screen width, so the labels keep their size on a phone instead of shrinking with a fixed viewBox.
   const box = useRef<HTMLElement>(null);
   const [w, setW] = useState(1040);
   useEffect(() => {
@@ -41,7 +49,8 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const W = Math.max(300, w), H = Math.round(Math.min(320, Math.max(220, W * 0.42))), L = W < 640 ? 48 : 60, narrow = W < 640;
+  // The figure is wider than the plot panel (panel padding), so draw slightly narrower.
+  const W = Math.max(280, w - 24), H = Math.round(Math.min(320, Math.max(220, W * 0.42))), L = W < 640 ? 48 : 60, narrow = W < 640;
   const n = y.length;
   const t = (i: number) => i / perYear;                       // years since start
   const span = (n - 1) / perYear;
@@ -58,6 +67,33 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
   const decades = years.filter((yr) => yr % 10 === 0);
   const pts = y.map((v, i) => `${X(t(i)).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
   const sx = split != null ? X(split - years[0]) : null;
+  const tc = trendColor ?? (slope >= 0 ? "var(--warming)" : "var(--cooling)");
+
+  // HUD callouts, computed from the data: first value, last value, and the year farthest from the trend line.
+  const mname = (i: number) => (perYear === 12 ? new Date(2000, i % 12).toLocaleString("en", { month: "short" }) + " " : "");
+  const callout = (i: number, side: "left" | "right" | "auto", tag: string) => {
+    const px = X(t(i)), py = Y(y[i]);
+    const align: "left" | "right" = side === "auto" ? (px < (L + W - R) / 2 ? "left" : "right") : side;
+    const up = py > (T + H - B) / 2;
+    const tx = Math.max(L + 10, Math.min(W - R - 10, px + (align === "left" ? 24 : -24)));
+    const ty = Math.max(split != null ? T + 26 : T - 4, Math.min(H - B - 22, py + (up ? -30 : 30)));
+    return {
+      key: `${i}${tag}`, from: [px, py] as [number, number], to: [tx, ty] as [number, number], align,
+      lines: [`${mname(i)}${years[0] + Math.floor(i / perYear)} · ${tag}`, `${perYear === 12 && y[i] > 0 ? "+" : ""}${fmt(y[i], 3)} ${units}`],
+    };
+  };
+  const notes = (() => {
+    if (!annotate || n < 3) return [];
+    let ex = 0, best = -1;
+    y.forEach((v, i) => { const dv = Math.abs(v - (b + slope * t(i))); if (dv > best) { best = dv; ex = i; } });
+    const out = [callout(0, "left", "START"), callout(n - 1, "right", "LATEST")];
+    // Skip the extreme one when it would sit on top of the start or end label.
+    const xe = X(t(ex));
+    if (ex > 0 && ex < n - 1 && Math.abs(xe - X(0)) > 150 && Math.abs(xe - X(span)) > 150) {
+      out.push(callout(ex, "auto", y[ex] >= b + slope * t(ex) ? "PEAK" : "LOW"));
+    }
+    return out;
+  })();
 
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -69,7 +105,9 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
 
   return (
     <figure ref={box} className="m-0">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full touch-pan-y select-none rounded-lg" role="img" tabIndex={0}
+      {/* Opaque night panel: no blur, grain or glow behind the plot. */}
+      <div className="rounded-2xl border border-white/10 bg-[var(--night)] p-3">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full touch-pan-y select-none" role="img" tabIndex={0}
         aria-label={`${title}, ${years[0]} to ${years.at(-1)}. Trend ${slope > 0 ? "+" : ""}${fmt(slope * 10, 3)} ${units} per decade${ci ? `, 95% range ${fmt(ci[0] * 10, 3)} to ${fmt(ci[1] * 10, 3)}` : ""}. Use the arrow keys to read each value.`}
         onPointerMove={onMove} onPointerLeave={() => setHover(null)} onBlur={() => setHover(null)}
         onKeyDown={(e) => {
@@ -79,25 +117,26 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
         }}>
         {yt.map((v) => (
           <g key={v}>
-            <line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="rgba(159,180,255,0.12)" />
-            <text x={L - 10} y={Y(v) + 4} textAnchor="end" fontSize={12} fill="#8fa0c4">{fmt(v, 3)}</text>
+            <line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} style={{ stroke: "var(--ink)", strokeOpacity: 0.08 }} />
+            <text x={L - 10} y={Y(v) + 4} textAnchor="end" style={axis}>{fmt(v, 3)}</text>
           </g>
         ))}
-        {decades.map((yr) => <text key={yr} x={X(yr - years[0])} y={H - 10} textAnchor="middle" fontSize={12} fill="#8fa0c4">{yr}</text>)}
-        <text x={L} y={16} fontSize={12} fontWeight={600} fill="#8fa0c4">{units}</text>
+        {decades.map((yr) => <text key={yr} x={X(yr - years[0])} y={H - 10} textAnchor="middle" style={axis}>{yr}</text>)}
+        <text x={L} y={16} style={{ ...axis, letterSpacing: "0.08em", textTransform: "uppercase" }}>{units}</text>
         {sx != null && (
           <g>
-            <rect x={sx} y={T - 8} width={W - R - sx} height={H - T - B + 8} fill="rgba(94,234,212,0.04)" />
-            <line x1={sx} x2={sx} y1={T - 8} y2={H - B} stroke="rgba(94,234,212,0.5)" strokeDasharray="4 4" />
-            <text x={L + 8} y={T + 6} fontSize={12} fill="#8fa0c4">{narrow ? "trend found" : `${years[0]}–${split! - 1}: trend found here`}</text>
-            <text x={sx + 8} y={T + 6} fontSize={12} fill="#5eead4">{narrow ? "kept going?" : `${split}–${years.at(-1)}: did it keep going?`}</text>
+            <rect x={sx} y={T - 8} width={W - R - sx} height={H - T - B + 8} style={{ fill: "var(--signal)", fillOpacity: 0.05 }} />
+            <line x1={sx} x2={sx} y1={T - 8} y2={H - B} strokeDasharray="4 4" style={{ stroke: "var(--signal)", strokeOpacity: 0.6 }} />
+            <text x={L + 8} y={T + 6} style={axis}>{narrow ? "trend found" : `${years[0]}–${split! - 1}: trend found here`}</text>
+            <text x={sx + 8} y={T + 6} style={{ ...axis, fill: "var(--signal)" }}>{narrow ? "kept going?" : `${split}–${years.at(-1)}: did it keep going?`}</text>
           </g>
         )}
-        {band && <path d={`M${band.map(([a, v]) => `${X(a)},${Y(v)}`).join(" L")} Z`} fill="rgba(249,115,22,0.18)" />}
-        <motion.polyline key={pts} points={pts} fill="none" stroke="#c7d2fe" strokeWidth={perYear === 1 ? 1.6 : 0.9} strokeLinejoin="round"
-          initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.9, ease: "easeOut" }} />
-        {perYear === 1 && y.map((v, i) => <circle key={i} cx={X(t(i))} cy={Y(v)} r={2.4} fill="#c7d2fe" />)}
-        <line x1={X(0)} y1={Y(b)} x2={X(span)} y2={Y(b + slope * span)} stroke="#f97316" strokeWidth={3} strokeLinecap="round" />
+        {band && <path d={`M${band.map(([a, v]) => `${X(a)},${Y(v)}`).join(" L")} Z`} style={{ fill: tc, fillOpacity: 0.16 }} />}
+        <motion.polyline key={pts} points={pts} fill="none" style={{ stroke: "var(--ink-dim)" }} strokeWidth={perYear === 1 ? 1.6 : 0.9} strokeLinejoin="round"
+          initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.9, ease: "easeOut" }} />
+        {perYear === 1 && y.map((v, i) => <circle key={i} cx={X(t(i))} cy={Y(v)} r={2.4} style={{ fill: "var(--ink)" }} />)}
+        <motion.line key={`trend${W}`} x1={X(0)} y1={Y(b)} x2={X(span)} y2={Y(b + slope * span)} style={{ stroke: tc }} strokeWidth={3} strokeLinecap="round"
+          initial={reduce ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.9, ease: "easeOut", delay: reduce ? 0 : 0.15 }} />
         {overlays.map((o) => (
           <g key={o.label}>
             {/* Join only consecutive years, so a missing year shows as a gap instead of a made-up line. */}
@@ -107,25 +146,27 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
             {o.points.map(([yr, v]) => <rect key={yr} x={X(yr - years[0]) - 3.5} y={Y(v) - 3.5} width={7} height={7} fill={o.color} transform={`rotate(45 ${X(yr - years[0])} ${Y(v)})`} />)}
           </g>
         ))}
+        {notes.map((c) => <HudCallout key={`${c.key}-${W}`} from={c.from} to={c.to} lines={c.lines} align={c.align} />)}
         {hover != null && (
           <g pointerEvents="none">
-            <line x1={X(t(hover))} x2={X(t(hover))} y1={T - 8} y2={H - B} stroke="rgba(232,238,252,0.35)" />
-            <circle cx={X(t(hover))} cy={Y(y[hover])} r={5} fill="#e8eefc" />
+            <line x1={X(t(hover))} x2={X(t(hover))} y1={T - 8} y2={H - B} style={{ stroke: "var(--ink)", strokeOpacity: 0.35 }} />
+            <circle cx={X(t(hover))} cy={Y(y[hover])} r={5} style={{ fill: "var(--ink)" }} />
             <g transform={`translate(${Math.min(X(t(hover)) + 10, W - 190)},${Math.max(Y(y[hover]) - 44, 4)})`}>
-              <rect width={178} height={38} rx={8} fill="#0f1730" stroke="rgba(159,180,255,0.35)" />
-              <text x={10} y={16} fontSize={12} fill="#8fa0c4">{month}{hy}</text>
-              <text x={10} y={31} fontSize={13} fill="#e8eefc" fontWeight={600}>{perYear === 12 && y[hover] > 0 ? "+" : ""}{fmt(y[hover], 3)} {units}</text>
+              <rect width={178} height={38} rx={8} style={{ fill: "var(--void)", stroke: "var(--glass-stroke)" }} />
+              <text x={10} y={16} style={axis}>{month}{hy}</text>
+              <text x={10} y={31} style={{ ...axis, fontSize: 12, fill: "var(--ink)" }}>{perYear === 12 && y[hover] > 0 ? "+" : ""}{fmt(y[hover], 3)} {units}</text>
             </g>
           </g>
         )}
       </svg>
+      </div>
       <p className="sr-only" aria-live="polite">{hover != null ? `${month}${hy}: ${fmt(y[hover], 3)} ${units}` : ""}</p>
-      <figcaption className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--muted)]">
-        <span className="flex items-center gap-2"><span className="h-0.5 w-5 bg-[#c7d2fe]" />{perYear === 1 ? "Each year's average" : "Each month, compared with a normal month"}</span>
-        <span className="flex items-center gap-2"><span className="h-[3px] w-5 bg-[#f97316]" />Trend line</span>
-        {band && <span className="flex items-center gap-2"><span className="h-3 w-5 rounded-sm bg-[#f97316]/30" />Steepest and gentlest trend lines that fit (95% range of the slope)</span>}
+      <figcaption className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--ink-dim)]">
+        <span className="flex items-center gap-2"><span className="h-0.5 w-5 bg-[var(--ink-dim)]" />{perYear === 1 ? "Each year's average" : "Each month, compared with a normal month"}</span>
+        <span className="flex items-center gap-2"><span className="h-[3px] w-5" style={{ background: tc }} />Trend line</span>
+        {band && <span className="flex items-center gap-2"><span className="h-3 w-5 rounded-sm" style={{ background: tc, opacity: 0.3 }} />Steepest and gentlest trend lines that fit (95% range of the slope)</span>}
         {overlays.map((o) => <span key={o.label} className="flex items-center gap-2"><span className="h-2 w-2 rotate-45" style={{ background: o.color }} />{o.label}</span>)}
-        <span className="ml-auto text-[12px] italic">Hover, touch, or focus the chart and use arrow keys to read a value.</span>
+        <span className="hud ml-auto !normal-case">Hover, touch, or focus the chart and use arrow keys to read a value.</span>
       </figcaption>
     </figure>
   );

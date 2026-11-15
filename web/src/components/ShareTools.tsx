@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Card } from "./ui";
+import { Card, SectionLabel } from "./ui";
 
 const csvCell = (v: string | number | null | undefined) => {
   const s = v == null ? "" : String(v);
@@ -34,13 +34,14 @@ export function ShareTools({ title, filename, header, rows, notes }: {
 
   return (
     <Card className="flex flex-col gap-3">
-      <h2 className="font-display text-lg font-normal">Use this case</h2>
+      <SectionLabel>USE THIS CASE</SectionLabel>
+      <h2 className="sr-only">Use this case</h2>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="pill" onClick={() => copy(link(), "link")}>{copied === "link" ? "Link copied ✓" : "Copy link"}</button>
         <button type="button" className="pill" onClick={download}>Download the data (CSV)</button>
         <button type="button" className="pill" onClick={() => copy(cite, "cite")}>{copied === "cite" ? "Citation copied ✓" : "Copy citation"}</button>
       </div>
-      <p className="text-[13px] leading-relaxed text-[var(--muted)]">{cite}</p>
+      <p className="text-[13px] leading-relaxed text-[var(--ink-dim)]">{cite}</p>
       <p className="sr-only" aria-live="polite">{copied === "error" ? "Couldn't copy. Select the text above instead." : copied ? `${copied === "link" ? "Link" : "Citation"} copied.` : ""}</p>
     </Card>
   );
