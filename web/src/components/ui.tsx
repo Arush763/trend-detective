@@ -1,8 +1,21 @@
 "use client";
 // Shared design-system primitives. See the trend-detective-design skill for the rules behind them.
 import Link from "next/link";
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ElementType, ReactNode } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { useEffect, useState, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type ElementType, type ReactNode } from "react";
+import { motion } from "motion/react";
+
+/** Hydration-safe reduced-motion flag: false on the server AND on the first client render, then the real preference after mount. (Motion's own useReducedMotion can differ between server and first client paint, which changes markup and breaks hydration.) */
+export function useReducedMotion() {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const on = () => setReduce(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return reduce;
+}
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -27,7 +40,7 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
 }
 
 /** Tiny line of a series; `trend` = [start, end] values of the trend line, drawn on top. Colors default to tokens (series ink-dim, trend warming). */
-export function Sparkline({ y, trend, color = "var(--warming)", label, className = "h-16 w-full" }: { y: number[]; trend?: [number, number]; color?: string; label: string; className?: string }) {
+export function Sparkline({ y, trend, color = "var(--warming)", label, className = "h-16 w-full", dashed = false }: { y: number[]; trend?: [number, number]; color?: string; label: string; className?: string; dashed?: boolean }) {
   const W = 300, H = 64;
   const lo = Math.min(...y, ...(trend ?? [])), hi = Math.max(...y, ...(trend ?? [])), span = hi - lo || 1;
   const X = (i: number) => (i / (y.length - 1)) * W;
@@ -35,7 +48,7 @@ export function Sparkline({ y, trend, color = "var(--warming)", label, className
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={className} preserveAspectRatio="none" role="img" aria-label={label}>
       <polyline fill="none" style={{ stroke: "var(--ink-dim)" }} strokeWidth={1.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" points={y.map((v, i) => `${X(i)},${Y(v)}`).join(" ")} />
-      {trend && <line x1={0} y1={Y(trend[0])} x2={W} y2={Y(trend[1])} style={{ stroke: color }} strokeWidth={2.5} vectorEffect="non-scaling-stroke" />}
+      {trend && <line x1={0} y1={Y(trend[0])} x2={W} y2={Y(trend[1])} style={{ stroke: color }} strokeWidth={2.5} strokeDasharray={dashed ? "6 5" : undefined} opacity={dashed ? 0.75 : 1} vectorEffect="non-scaling-stroke" />}
     </svg>
   );
 }
@@ -154,7 +167,7 @@ export function HudCallout({ from, to, lines, align = "left", show = true }: { f
         initial={reduce ? false : { opacity: 0 }} animate={{ opacity: show ? 1 : 0 }} transition={{ duration: 0.2 }} />
       {lines.map((ln, i) => (
         <motion.text key={i} x={tx} y={to[1] + 4 + i * 14} textAnchor={right ? "end" : "start"}
-          style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.08em", fill: i === 0 ? "var(--ink)" : "var(--ink-dim)" }}
+          style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.08em", fill: i === 0 ? "var(--ink)" : "var(--ink-dim)", paintOrder: "stroke", stroke: "var(--night)", strokeWidth: 4, strokeLinejoin: "round" }}
           initial={reduce ? false : { opacity: 0 }} animate={{ opacity: show ? 1 : 0 }}
           transition={{ duration: 0.4, ease: EASE, delay: show ? 0.45 + i * 0.04 : 0 }}>
           {ln.toUpperCase()}

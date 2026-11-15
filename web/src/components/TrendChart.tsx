@@ -74,9 +74,14 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
   const callout = (i: number, side: "left" | "right" | "auto", tag: string) => {
     const px = X(t(i)), py = Y(y[i]);
     const align: "left" | "right" = side === "auto" ? (px < (L + W - R) / 2 ? "left" : "right") : side;
-    const up = py > (T + H - B) / 2;
+    // Put the label block clear of the series: above it when the nearby data sits in the lower half of the plot, otherwise below.
+    // Window = ±3 years around the point; keep ~18px between the block and the nearest point in that window.
+    const win = 3 * perYear, near = y.slice(Math.max(0, i - win), Math.min(n, i + win + 1)).map(Y);
+    const nTop = Math.min(py, ...near), nBot = Math.max(py, ...near);
+    const above = (nTop + nBot) / 2 > (T + H - B) / 2;
     const tx = Math.max(L + 10, Math.min(W - R - 10, px + (align === "left" ? 24 : -24)));
-    const ty = Math.max(split != null ? T + 26 : T - 4, Math.min(H - B - 22, py + (up ? -30 : 30)));
+    const lo2 = split != null ? T + 26 : T - 4, hi2 = H - B - 22;
+    const ty = Math.max(lo2, Math.min(hi2, above ? nTop - 18 - 18 : nBot + 18 + 10));
     return {
       key: `${i}${tag}`, from: [px, py] as [number, number], to: [tx, ty] as [number, number], align,
       lines: [`${mname(i)}${years[0] + Math.floor(i / perYear)} · ${tag}`, `${perYear === 12 && y[i] > 0 ? "+" : ""}${fmt(y[i], 3)} ${units}`],

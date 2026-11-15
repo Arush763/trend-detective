@@ -22,7 +22,9 @@ const ramp = (stops: number[][], t: number) => (t < 0.5 ? lerp(stops[0], stops[1
 export const rgb = (c: number[]) => `rgb(${c.join(",")})`;
 /** The colour for a rising (+1) or falling (−1) trend of this variable, at full strength. */
 export const trendColor = (v: string, sign: number) => (sign === 0 ? "var(--ink-dim)" : rgb(ramp(sign > 0 ? ramps(v).up : ramps(v).down, 0.6)));
-const rampCss = (stops: number[][]) => `linear-gradient(90deg, ${[T0, (T0 + 1) / 2, 1].map((t) => rgb(ramp(stops, t))).join(",")})`;
+/** CSS colour for a trend line/bar: heat-like vars rising = --warming, falling = --cooling; water vars wetter = --cooling, drier = ochre. */
+export const trendToneCss = (v: string, slope: number) => (WATER.has(v) ? (slope >= 0 ? "var(--cooling)" : "#c48a3f") : slope >= 0 ? "var(--warming)" : "var(--cooling)");
+const rampCss =(stops: number[][]) => `linear-gradient(90deg, ${[T0, (T0 + 1) / 2, 1].map((t) => rgb(ramp(stops, t))).join(",")})`;
 
 let coastPromise: Promise<Path2D | null> | null = null;
 /** Natural Earth coastlines as a Path2D in (lon + 180, 90 − lat) degrees, or null if they failed to load. */

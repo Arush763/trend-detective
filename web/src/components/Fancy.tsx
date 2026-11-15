@@ -1,7 +1,7 @@
 "use client";
 // Atmosphere: film grain, light leaks, particle dust, plus the warming stripes (which are data).
 import { useEffect, useRef, useState } from "react";
-import { useReducedMotion } from "motion/react";
+import { useReducedMotion } from "./ui";
 import { get } from "@/lib/data";
 
 // 160px tile of monochrome fractal noise, rendered once by the browser and tiled.

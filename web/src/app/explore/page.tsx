@@ -1,12 +1,12 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { DEMOS, NICE, TYPE_LABEL, VERDICT, cap, checks, fmt, get, parseQuestion, pfmt, headline, inPlace, placeName, signed, type Grid, type Meta, type Region } from "@/lib/data";
 import { TrendChart } from "@/components/TrendChart";
 import { Badge, Brackets, Button, Card, Hud, SectionLabel, VerdictStamp } from "@/components/ui";
-import { Globe, GlobeScale, cellAt, type Pick } from "@/components/Globe";
+import { Globe, GlobeScale, cellAt, trendToneCss, type Pick } from "@/components/Globe";
 import { CellInfo } from "@/components/CellInfo";
 import { ShareTools } from "@/components/ShareTools";
 
@@ -14,9 +14,9 @@ const STEPS = ["Kind of place", "Place", "What to look at", "The data", "Check 1
 const DATA = 3, VERDICT_STEP = 8;
 const page = { initial: { opacity: 0, x: 24 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -24 }, transition: { duration: 0.3 } };
 /** Water variables: wetter = the cooling-blue family, drier = ochre. Everything else: rising = warming, falling = cooling. */
-const WATER = new Set(["TQV", "PRECTOTCORR", "EVAP", "GWETROOT", "SNOMAS", "RUNOFF"]);
-const DRY_COLOR = "#c98a3a";
-const trendTone = (v: string, slope: number) => (WATER.has(v) ? (slope >= 0 ? "var(--cooling)" : DRY_COLOR) : slope >= 0 ? "var(--warming)" : "var(--cooling)");
+const trendTone = trendToneCss; // one source of truth, shared with /compare (see Globe.tsx)
+/** Question headers report whether they are on screen, so the floating status pill can show only once the header has scrolled away. */
+const HeaderSeen = createContext<(on: boolean) => void>(() => {});
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 /** Snow "trends" in places that almost never have snow are just rounding noise, so we don't offer them. */
 const TRACE_SNOW = 0.5; // kg/m², long-term mean
@@ -42,6 +42,15 @@ export default function Explore() {
   const [err, setErr] = useState("");
   const lastStep = useRef(-1);
   const reduce = useReducedMotion();
+  const [headerOn, setHeaderOn] = useState(true); // the question header is on screen
+  const strip = useRef<HTMLOListElement>(null);
+
+  // Keep the active step centred in the (horizontally scrolling) phone strip. scrollTo on the strip only, never the page.
+  useEffect(() => {
+    const c = strip.current, btn = c?.querySelector<HTMLElement>('[aria-current="step"]');
+    if (!c || !btn || c.scrollWidth <= c.clientWidth) return;
+    c.scrollTo({ left: btn.offsetLeft - (c.clientWidth - btn.offsetWidth) / 2, behavior: reduce ? "auto" : "smooth" });
+  }, [step, ready, meta, reduce]);
 
   useEffect(() => {
     get("meta.json").then((m) => {
@@ -132,7 +141,7 @@ export default function Explore() {
         <div className="h-px bg-[var(--ink-faint)]">
           <motion.div className="h-px bg-[var(--signal)]" animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }} transition={reduce ? { duration: 0 } : undefined} />
         </div>
-        <ol className="-mx-4 m-0 flex list-none flex-nowrap gap-1.5 overflow-x-auto px-5 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-1">
+        <ol ref={strip} className="relative -mx-4 m-0 flex list-none flex-nowrap gap-1.5 overflow-x-auto px-5 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-1">
           {STEPS.map((s, i) => (
             <li key={s} className="shrink-0">
               <button type="button" onClick={() => go(i)} disabled={!canReach(i)} aria-current={i === step ? "step" : undefined}
@@ -145,14 +154,20 @@ export default function Explore() {
         </ol>
       </nav>
 
-      {statusText && (
-        <motion.div layout={!reduce} transition={{ duration: 0.3 }} className="glass sticky top-[76px] z-30 inline-flex max-w-full items-center gap-2 self-start !rounded-full px-4 py-2">
-          <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--signal)]" />
-          <Hud className="truncate text-[var(--ink)]">{statusText}</Hud>
-        </motion.div>
-      )}
+      {/* Dynamic island: floats in only once the question header has scrolled out of view. The h1 carries the same info. */}
+      <AnimatePresence>
+        {statusText && !headerOn && (
+          <div aria-hidden="true" className="pointer-events-none fixed inset-x-0 top-[76px] z-30 flex justify-center px-4">
+            <motion.div layout={!reduce} key="island" initial={reduce ? false : { opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={reduce ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, y: -12 }} transition={reduce ? { duration: 0 } : { duration: 0.3 }}
+              className="glass-strong inline-flex max-w-[calc(100vw-32px)] items-center gap-2 !rounded-full px-4 py-2">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--signal)]" />
+              <Hud className="truncate text-[var(--ink)]">{statusText}</Hud>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-
+      <HeaderSeen.Provider value={setHeaderOn}>
       <AnimatePresence mode="wait">
         <motion.div key={step} {...page}>
           {step === 0 && <KindStep meta={meta} type={type} pick={(t) => {
@@ -170,6 +185,7 @@ export default function Explore() {
           ))}
         </motion.div>
       </AnimatePresence>
+      </HeaderSeen.Provider>
 
       {step === VERDICT_STEP && d && <NextCase demo={demo} startDemo={startDemo} />}
 
@@ -223,6 +239,15 @@ function Skeleton() {
 function Question({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
   const ref = useRef<HTMLHeadingElement>(null);
   const first = useRef(true);
+  const report = useContext(HeaderSeen);
+  const box = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => report(e.isIntersecting), { rootMargin: "-76px 0px 0px 0px" });
+    io.observe(el);
+    return () => { io.disconnect(); report(true); };
+  }, [report]);
   // Move focus to the new question when the step changes (not on first load), so keyboard and
   // screen-reader users land on the new page instead of being dropped at the top of the document.
   useEffect(() => {
@@ -231,7 +256,7 @@ function Question({ eyebrow, title, sub }: { eyebrow: string; title: string; sub
     ref.current?.focus({ preventScroll: true });
   }, [title]);
   return (
-    <header className="mb-8 flex max-w-[860px] flex-col gap-3">
+    <header ref={box} className="mb-8 flex max-w-[860px] flex-col gap-3">
       <SectionLabel>{eyebrow}</SectionLabel>
       <h1 ref={ref} tabIndex={-1} className="text-balance font-display text-[clamp(36px,5vw,64px)] leading-[0.95] tracking-[-0.03em] outline-none">{title}</h1>
       {sub && <p className="max-w-[60ch] text-pretty text-lg leading-relaxed text-[var(--ink-dim)]">{sub}</p>}

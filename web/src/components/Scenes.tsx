@@ -3,11 +3,11 @@
 // everything inside is driven by how far you've scrolled through it (scroll back and it rewinds).
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { animate, motion, useMotionValue, useMotionValueEvent, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react";
+import { animate, motion, useMotionValue, useMotionValueEvent, useScroll, useTransform, type MotionValue } from "motion/react";
 import Lenis from "lenis";
-import { DEMOS, NICE, type Grid, type Meta, type Region } from "@/lib/data";
+import { DEMOS, NICE, signed, type Grid, type Meta, type Region } from "@/lib/data";
 import { Globe, coast } from "./Globe";
-import { Badge, Button, HudCallout, RegMarks, SectionLabel, Sparkline, VerdictStamp } from "./ui";
+import { Badge, Button, HudCallout, RegMarks, SectionLabel, Sparkline, VerdictStamp, useReducedMotion } from "./ui";
 import { Dust, LightLeaks } from "./Fancy";
 
 /** Smooth, inertial scrolling for the page this is mounted on (off for reduced motion). */
@@ -49,7 +49,9 @@ function HeroStage({ p, grid, cells }: { p: MotionValue<number>; grid: Grid | nu
   const h2y = useTransform(p, [0.38, 0.8], [40, -40]);
   const globeY = useTransform(p, [0, 0.75], ["64%", "18%"]);
   const globeS = useTransform(p, [0, 0.75], [1, 0.82]);
-  const hint = useTransform(p, [0, 0.06], [1, 0]);
+  // Fade on absolute page scroll: the pinned section's progress can read slightly above 0 at the very top.
+  const { scrollY } = useScroll();
+  const hint = useTransform(scrollY, [0, 120], [1, 0]);
   const curtain = useTransform(p, [0.84, 1], ["circle(0% at 50% 100%)", "circle(150% at 50% 100%)"]);
 
   return (
@@ -71,8 +73,8 @@ function HeroStage({ p, grid, cells }: { p: MotionValue<number>; grid: Grid | nu
             </div>
           </motion.div>
           <motion.div style={{ opacity: h2, y: h2y }} className="pointer-events-none absolute inset-x-0 top-[12vh] z-10 mx-auto flex max-w-[900px] flex-col items-center gap-4 px-6 text-center">
-            <p className="hud">Scale of the test · air temperature</p>
-            <p className="text-balance font-display text-[clamp(32px,4.6vw,60px)] leading-[1.05] tracking-[-0.03em]">
+            <p className="hud [text-shadow:0_2px_24px_rgba(5,7,11,.9),0_0_2px_rgba(5,7,11,.8)]">Scale of the test · air temperature</p>
+            <p className="text-balance font-display text-[clamp(32px,4.6vw,60px)] leading-[1.05] tracking-[-0.03em] [text-shadow:0_2px_24px_rgba(5,7,11,.9),0_0_2px_rgba(5,7,11,.8)]">
               We tested <span className="num tabular-nums text-warming">{cells ? cells.toLocaleString() : "12,960"}</span> places on Earth for a trend since 1980.
             </p>
           </motion.div>
@@ -82,7 +84,7 @@ function HeroStage({ p, grid, cells }: { p: MotionValue<number>; grid: Grid | nu
           </motion.div>
         </div>
         <RegMarks />
-        <motion.p style={{ opacity: hint }} className="hud absolute bottom-0 left-1/2 z-10 -translate-x-1/2 translate-y-1/2 whitespace-nowrap bg-void px-4 py-1">Scroll to explore</motion.p>
+        <motion.p style={{ opacity: hint }} className="glass-strong hud absolute bottom-0 left-1/2 z-10 -translate-x-1/2 translate-y-1/2 whitespace-nowrap rounded-full px-5 py-2 !text-ink">Scroll to explore</motion.p>
       </div>
       <motion.div aria-hidden="true" style={{ clipPath: curtain }} className="absolute inset-0 z-20 bg-paper" />
     </>
@@ -235,23 +237,30 @@ function NoiseStage({ p, meta, grid }: { p: MotionValue<number>; meta: Meta; gri
     const reach = W / 36;
     for (const d of dots) {
       const a = d.c[i], b = d.c[next];
-      let r = rad, tt = 0;
+      let tt = 0;
+      if (dissolving && d.dis) tt = Math.min(1, Math.max(0, (t - d.dis.delay * 0.6) / (1 - d.dis.delay * 0.6)));
+      const cx = d.x * W, cy = d.y * H;
       if (dissolving && d.dis) {
-        tt = Math.min(1, Math.max(0, (t - d.dis.delay * 0.6) / (1 - d.dis.delay * 0.6)));
-        r = rad * (1 - 0.5 * tt);
+        // Stays magenta: a DIM dot fades in underneath while the magenta one shrinks and fades out (no RGB blend through orange).
+        ctx.fillStyle = `rgb(${DIM[0]},${DIM[1]},${DIM[2]})`;
+        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 6.2832); ctx.fill();
+        if (tt < 1) {
+          ctx.fillStyle = "#e879f9";
+          ctx.globalAlpha = 1 - tt;
+          ctx.beginPath(); ctx.arc(cx, cy, rad * (1 - 0.5 * tt), 0, 6.2832); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      } else {
+        ctx.fillStyle = `rgb(${a[0] + (b[0] - a[0]) * t},${a[1] + (b[1] - a[1]) * t},${a[2] + (b[2] - a[2]) * t})`;
+        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 6.2832); ctx.fill();
       }
-      const k = tt > 0 ? Math.min(1, tt * 1.6) : t; // the dot itself goes dark a little faster than the particles leave
-      ctx.fillStyle = `rgb(${a[0] + (b[0] - a[0]) * k},${a[1] + (b[1] - a[1]) * k},${a[2] + (b[2] - a[2]) * k})`;
-      ctx.beginPath();
-      ctx.arc(d.x * W, d.y * H, r, 0, 6.2832);
-      ctx.fill();
       if (tt > 0 && tt < 1 && d.dis) {
-        ctx.fillStyle = `rgb(${LUCK[0]},${LUCK[1]},${LUCK[2]})`;
-        ctx.globalAlpha = (1 - tt) * 0.9;
+        ctx.fillStyle = "#e879f9";
+        ctx.globalAlpha = tt < 0.4 ? 1 : (1 - tt) / 0.6; // full strength, fading over the last 60%
         for (const q of d.dis.parts) {
-          const dist = q.dist * reach * tt;
+          const dist = q.dist * reach * tt; // 1-3x the dot spacing, mostly upward
           ctx.beginPath();
-          ctx.arc(d.x * W + Math.cos(q.ang) * dist, d.y * H + Math.sin(q.ang) * dist - tt * reach * 0.4, Math.max(0.5, rad * q.size * (1 - tt * 0.4)), 0, 6.2832);
+          ctx.arc(cx + Math.cos(q.ang) * dist, cy + Math.sin(q.ang) * dist - tt * reach * 0.4, (1.2 + (q.size - 0.45) * 3) * Math.max(0.7, rad / 3), 0, 6.2832);
           ctx.fill();
         }
         ctx.globalAlpha = 1;
@@ -316,7 +325,7 @@ function NoiseStage({ p, meta, grid }: { p: MotionValue<number>; meta: Meta; gri
               aria-label={`Dot map of the world, air temperature trends: ${st.title}. ${count.toLocaleString()} ${st.noun}.`} />
             {/* HUD annotation over the map. Hidden on small screens, where its text would be too small to read. */}
             <svg aria-hidden="true" viewBox="0 0 720 360" className="pointer-events-none absolute inset-0 hidden h-full w-full overflow-visible md:block">
-              <HudCallout from={[540, 30]} to={[706, -18]} align="right" lines={["Arctic · 66.5°N+", "Passes all four checks"]} show={stage === 3} />
+              <HudCallout from={[560, 40]} to={[706, -52]} align="right" lines={["Arctic · 66.5°N+", "Passes all four checks"]} show={stage === 3} />
             </svg>
           </div>
           <figcaption className="flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-ink-dim">
@@ -341,8 +350,6 @@ export function CasesScene({ cases }: { cases: Record<string, Region> }) {
   );
 }
 const CASE_TONE = { arctic: "real", beijing: "alarm", murray: "maybe" } as const;
-/** A real number for the HUD: minus sign only when it is negative, 3 significant figures. */
-const fmt = (v: number) => `${v < 0 ? "−" : ""}${Math.abs(v) >= 10 ? Math.abs(v).toFixed(1) : Number(Math.abs(v).toPrecision(3))}`;
 const CARD = "group glass flex h-[min(calc(70svh-4rem),560px)] w-[min(82vw,520px)] shrink-0 flex-col gap-4 rounded-[28px] p-6 text-ink no-underline transition-colors hover:border-white/35 sm:gap-5 sm:p-8";
 
 function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string, Region> }) {
@@ -370,7 +377,10 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
         {DEMOS.map((c, i) => {
           const d = cases[c.id]?.variables[c.v];
           const nice = NICE[c.v];
-          const a0: number | undefined = d?.annual[0], a1: number | undefined = d?.annual.at(-1);
+          const water = ["TQV", "PRECTOTCORR", "EVAP", "GWETROOT", "SNOMAS", "RUNOFF"].includes(c.v);
+          const rising = (d?.slope_decade ?? 0) > 0;
+          const trendCol = water ? (rising ? "var(--cooling)" : "#c48a3f") : (rising ? "var(--warming)" : "var(--cooling)");
+          const sig = c.tone === "real";
           return (
             <Link key={c.id} href={`/explore?place=${c.place}&v=${c.v}&case=${c.id}`} className={CARD}>
               <div className="hud flex items-center justify-between gap-3 border-b border-glass-stroke pb-3">
@@ -380,13 +390,11 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
               <div><Badge tone={CASE_TONE[c.id as keyof typeof CASE_TONE] ?? c.tone}>{c.tag}</Badge></div>
               <div className="flex min-h-0 flex-1 flex-col justify-center gap-1">
                 {d && <>
-                  <Sparkline y={d.annual} className="h-28 w-full" trend={c.tone === "real" ? [d.intercept, d.intercept + (d.slope_decade / 10) * (d.annual.length - 1)] : undefined} label={`${c.title}: yearly values 1980 to 2025`} />
-                  {a0 != null && a1 != null && (
-                    <div aria-hidden="true" className="hud num flex justify-between gap-2 tabular-nums">
-                      <span className="inline-flex items-center gap-1.5"><svg width="6" height="6"><circle cx="3" cy="3" r="3" fill="currentColor" /></svg>1980 {fmt(a0)} {nice?.units}</span>
-                      <span className="inline-flex items-center gap-1.5">2025 {fmt(a1)} {nice?.units}<svg width="6" height="6"><circle cx="3" cy="3" r="3" fill="currentColor" /></svg></span>
-                    </div>
-                  )}
+                  <Sparkline y={d.annual} className="h-28 w-full" color={trendCol} dashed={!sig} trend={[d.intercept, d.intercept + (d.slope_decade / 10) * (d.annual.length - 1)]} label={`${c.title}: yearly values 1980 to 2025, with the straight-line trend${sig ? "" : " (not proven)"}`} />
+                  <div aria-hidden="true" className="hud num flex justify-between gap-2 tabular-nums">
+                    <span>1980–2025</span>
+                    <span>Trend <span style={{ color: trendCol }}>{signed(d.slope_decade)} {nice?.units}</span>/decade</span>
+                  </div>
                 </>}
               </div>
               <p className="text-base leading-relaxed text-ink-dim">{c.text}</p>

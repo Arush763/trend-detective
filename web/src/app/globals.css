@@ -200,3 +200,6 @@ body {
   .btn-arrow { transition: none; transform: none !important; }
   html { scroll-behavior: auto !important; }
 }
+
+/* Unlayered so it beats the .text-ink-faint utility: faint slashes/decoration on light chapters must be dark, not white. */
+.paper .text-ink-faint, .light-scene .text-ink-faint { color: rgba(11, 16, 32, 0.35); }
