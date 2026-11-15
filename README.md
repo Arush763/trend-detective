@@ -4,15 +4,15 @@ NASA Space Apps 2026, challenge "Be An Earth System Trend Detective!"
 
 **Live app: https://trend-detective.vercel.app**
 
-Test 13,000 places for a trend and about 650 will look "significant" by pure luck.
+Test 12,960 places for a trend and about 650 will look "significant" by pure luck.
 Trend Detective tests 46 years of NASA MERRA-2 data region by region and cell by cell,
-then shows which trends survive the checks that luck can't pass.
+then shows which trends survive the checks that luck rarely passes.
 
 ## What it does
 
 1. **Open a case.** Pick a kind of place (desert, rainforest, city, polar...) and a region. The app suggests the variables that matter for that kind of place.
-2. **Earth Screener.** The region's 9 variables ranked by signal-to-noise, each with a plain-English definition.
-3. **Case File.** Yearly values with the seasonal cycle removed, the Sen's slope trend with a 95% confidence interval, Mann-Kendall p-values (naive, autocorrelation-corrected, shuffle test), a false-discovery-rate q-value, and a verdict.
+2. **What to look at.** The region's variables ranked by signal-to-noise, suggested ones first, each with a plain-English definition.
+3. **The data, four checks, a verdict.** Yearly values with the seasonal cycle removed, the Sen's slope trend with a 95% confidence interval, Mann-Kendall p-values (naive, autocorrelation-corrected, shuffle test), a false-discovery-rate q-value, and a verdict.
    - **Remove El Niño:** regresses out the detrended Niño 3.4 index, so a few big El Niño years can't fake a trend.
    - **Years until we'd know:** for trends that aren't significant yet, how many years of data it would take (Weatherhead et al. 1998).
    - **Walk-forward:** finds the trend in 1980–2002, then checks if it holds in 2003–2025 (confirmed / continuing / faded / reversed / emerging).
@@ -26,14 +26,21 @@ then shows which trends survive the checks that luck can't pass.
 
 ## Run it
 
+The processed data (`data/processed`) is committed, so to run the site you only need Node:
+
+```
+cd web && npm install && npm run dev
+```
+
+To rebuild the data from NASA (Python 3.11+, a free Earthdata Login token):
+
 ```
 pip install -r pipeline/requirements.txt
-$env:EARTHDATA_TOKEN = "<your Earthdata Login token>"   # never commit it
+$env:EARTHDATA_TOKEN = "<your Earthdata Login token>"   # PowerShell; bash: export EARTHDATA_TOKEN=...  Never commit it.
 python pipeline/download_merra2.py --test   # check one month
 python pipeline/download_merra2.py          # ~2,200 files, ~2.3 GB, resumable
 python pipeline/build.py                    # writes data/processed (~10 min)
 python pipeline/test_stats.py               # checks our statistics against pymannkendall
-cd web && npm install && npm run dev
 ```
 
 ## Methods and references

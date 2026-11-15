@@ -184,12 +184,14 @@ def build_grid(var, lat_c, lon_c, monthly, enso):
         "mean": rlist(full(res["mean"])),
     }
     n_valid = int(ok.sum())
+    # Count from the rounded values the website reads, so the captions match the squares it colours.
+    sig = lambda xs: sum(1 for x in xs if x is not None and x < 0.05)  # noqa: E731
     summary = {
         "cells": n_valid,
-        "naive_sig": int(np.sum(res["naive"]["p"] < 0.05)),
-        "noise_sig": int(np.sum(res["noise"]["p"] < 0.05)),
-        "real_sig": int(np.nansum(q < 0.05)),
-        "enso_real_sig": int(np.nansum(q_e < 0.05)),
+        "naive_sig": sig(out["p_naive"]),
+        "noise_sig": sig(out["p_noise"]),
+        "real_sig": sig(out["q"]),
+        "enso_real_sig": sig(out["q_enso"]),
     }
     out["summary"] = summary
     return out
@@ -234,7 +236,9 @@ def region_payloads(reg_monthly, enso):
                 "ci_decade": [rnd(res["hr"]["ci_low"][j] * 10), rnd(res["hr"]["ci_high"][j] * 10)],
                 "intercept": rnd(res["hr"]["intercept"][j], 6),
                 "total_change": rnd(total),
-                "pct_change": rnd(100 * total / mean) if (mean and mean > 0 and VARIABLES[var].get("pct", True)) else None,
+                # Percent of the trend's own 1980 value, so "down 28% since 1980" means what it says.
+                "pct_change": (rnd(100 * total / res["hr"]["intercept"][j])
+                               if res["hr"]["intercept"][j] > 0 and VARIABLES[var].get("pct", True) else None),
                 "p_naive": rnd(res["naive"]["p"][j], 3),
                 "p_hr": rnd(p_hr, 3),
                 "p_perm": rnd(stats.permutation_p(y), 3),

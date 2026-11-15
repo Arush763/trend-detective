@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { fmt } from "@/lib/data";
 
@@ -15,7 +15,7 @@ type Props = {
   title: string;
 };
 
-const W = 1040, H = 320, L = 60, R = 18, T = 40, B = 34;
+const R = 18, T = 40, B = 34;
 
 // Nice round axis ticks between lo and hi.
 function ticks(lo: number, hi: number, n = 5) {
@@ -29,6 +29,17 @@ const median = (a: number[]) => { const s = [...a].sort((p, q) => p - q), m = s.
 
 export function TrendChart({ years, y, perYear, slope, ci, intercept, split, units, title }: Props) {
   const [hover, setHover] = useState<number | null>(null);
+  // Draw at the real on-screen width, so the 12px labels stay 12px on a phone instead of shrinking with a fixed viewBox.
+  const box = useRef<HTMLElement>(null);
+  const [w, setW] = useState(1040);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width) || 1040));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const W = Math.max(300, w), H = Math.round(Math.min(320, Math.max(220, W * 0.42))), L = W < 640 ? 48 : 60, narrow = W < 640;
   const n = y.length;
   const t = (i: number) => i / perYear;                       // years since start
   const span = (n - 1) / perYear;
@@ -55,10 +66,15 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
   const month = hover != null && perYear === 12 ? new Date(2000, hover % 12).toLocaleString("en", { month: "short" }) + " " : "";
 
   return (
-    <figure className="m-0">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full touch-none select-none" role="img"
-        aria-label={`${title}, ${years[0]} to ${years.at(-1)}, with trend line`}
-        onPointerMove={onMove} onPointerLeave={() => setHover(null)}>
+    <figure ref={box} className="m-0">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full touch-pan-y select-none rounded-lg" role="img" tabIndex={0}
+        aria-label={`${title}, ${years[0]} to ${years.at(-1)}. Trend ${slope > 0 ? "+" : ""}${fmt(slope * 10, 3)} ${units} per decade${ci ? `, 95% range ${fmt(ci[0] * 10, 3)} to ${fmt(ci[1] * 10, 3)}` : ""}. Use the arrow keys to read each value.`}
+        onPointerMove={onMove} onPointerLeave={() => setHover(null)} onBlur={() => setHover(null)}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+          e.preventDefault();
+          setHover((h) => Math.max(0, Math.min(n - 1, (h ?? -1) + (e.key === "ArrowRight" ? 1 : -1))));
+        }}>
         {yt.map((v) => (
           <g key={v}>
             <line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="rgba(159,180,255,0.12)" />
@@ -66,13 +82,13 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
           </g>
         ))}
         {decades.map((yr) => <text key={yr} x={X(yr - years[0])} y={H - 10} textAnchor="middle" fontSize={12} fill="#8fa0c4">{yr}</text>)}
-        <text x={L} y={16} fontSize={12} fill="#8fa0c4">{units}</text>
+        <text x={L} y={16} fontSize={12} fontWeight={600} fill="#8fa0c4">{units}</text>
         {sx != null && (
           <g>
             <rect x={sx} y={T - 8} width={W - R - sx} height={H - T - B + 8} fill="rgba(94,234,212,0.04)" />
             <line x1={sx} x2={sx} y1={T - 8} y2={H - B} stroke="rgba(94,234,212,0.5)" strokeDasharray="4 4" />
-            <text x={L + 8} y={T + 6} fontSize={12} fill="#8fa0c4">{years[0]}–{split! - 1}: trend found here</text>
-            <text x={sx + 8} y={T + 6} fontSize={12} fill="#5eead4">{split}–{years.at(-1)}: did it keep going?</text>
+            <text x={L + 8} y={T + 6} fontSize={12} fill="#8fa0c4">{narrow ? "trend found" : `${years[0]}–${split! - 1}: trend found here`}</text>
+            <text x={sx + 8} y={T + 6} fontSize={12} fill="#5eead4">{narrow ? "kept going?" : `${split}–${years.at(-1)}: did it keep going?`}</text>
           </g>
         )}
         {band && <path d={`M${band.map(([a, v]) => `${X(a)},${Y(v)}`).join(" L")} Z`} fill="rgba(249,115,22,0.18)" />}
@@ -92,11 +108,12 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
           </g>
         )}
       </svg>
+      <p className="sr-only" aria-live="polite">{hover != null ? `${month}${hy}: ${fmt(y[hover], 3)} ${units}` : ""}</p>
       <figcaption className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--muted)]">
         <span className="flex items-center gap-2"><span className="h-0.5 w-5 bg-[#c7d2fe]" />{perYear === 1 ? "Each year's average" : "Each month, compared with a normal month"}</span>
         <span className="flex items-center gap-2"><span className="h-[3px] w-5 bg-[#f97316]" />Trend line</span>
-        {band && <span className="flex items-center gap-2"><span className="h-3 w-5 rounded-sm bg-[#f97316]/30" />Range the trend could be in (95% sure)</span>}
-        <span>Hover or touch the chart to read a value.</span>
+        {band && <span className="flex items-center gap-2"><span className="h-3 w-5 rounded-sm bg-[#f97316]/30" />Steepest and gentlest trend lines that fit (95% range of the slope)</span>}
+        <span className="ml-auto text-[12px] italic">Hover, touch, or focus the chart and use arrow keys to read a value.</span>
       </figcaption>
     </figure>
   );

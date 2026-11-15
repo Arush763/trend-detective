@@ -6,6 +6,7 @@
   --text: #e8eefc;
   --soft: #c3cde6;
   --muted: #8fa0c4;
+  --dim: #a9b6d3;
   --line: rgba(159, 180, 255, 0.16);
   --accent: #5eead4;
   --up: #f97316;
@@ -18,7 +19,7 @@
   --font-display: var(--font-outfit), var(--font-inter), sans-serif;
 }
 
-html { overflow-x: clip; }
+html { overflow-x: clip; scroll-padding-top: 80px; }
 body {
   margin: 0;
   overflow-x: clip; /* full-bleed landing sections use 100vw */
@@ -35,6 +36,7 @@ body {
   a { color: var(--accent); }
   a:hover { color: #99f6e4; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  button:not(:disabled), summary, label:has(input:not(:disabled)), select { cursor: pointer; }
   h1, h2, h3 { font-family: var(--font-display); margin: 0; }
   p { margin: 0; }
 }
@@ -56,7 +58,8 @@ body {
 
 .btn {
   display: inline-flex; align-items: center; min-height: 48px; padding: 0 24px; border-radius: 999px;
-  font-weight: 600; font-size: 16px; text-decoration: none;
+  font-weight: 600; font-size: 16px; text-decoration: none; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .btn-primary { background: var(--accent); color: #04211d; }
 .btn-primary:hover { background: #99f6e4; color: #04211d; }
@@ -71,3 +74,6 @@ body {
 @media (prefers-reduced-motion: reduce) { .twinkle { animation: none; opacity: 0.6; } }
 
 .eyebrow { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+
+/* The light landing scenes: the teal focus ring is invisible on #f4f3f8, so use a dark teal there. */
+.light-scene :focus-visible { outline-color: #0f766e; }
