@@ -92,6 +92,25 @@ export default function How() {
         </ul>
       </section>
 
+      <section className="flex flex-col gap-4">
+        <h2 className="font-display text-[28px] font-light">Use it as an app, even offline</h2>
+        <p className="max-w-[760px] text-[15px] leading-relaxed text-[var(--soft)]">
+          Trend Detective installs like an app. Once it&apos;s installed (or you&apos;ve visited once), every page and every place&apos;s NASA data is saved on your device, so it works in a classroom with no Wi-Fi.
+        </p>
+        <div className="grid gap-4 md:grid-cols-3">
+          {[
+            ["iPhone or iPad (Safari)", "Tap the Share button, then \"Add to Home Screen\"."],
+            ["Android (Chrome)", "Tap \"Install app\" in the menu at the top of this site, or the ⋮ menu, then \"Install app\"."],
+            ["Computer (Chrome or Edge)", "Click \"Install app\" in the top bar, or the install icon at the right end of the address bar."],
+          ].map(([t, d]) => (
+            <Card key={t} className="flex flex-col gap-2">
+              <h3 className="font-display text-lg font-normal">{t}</h3>
+              <p className="text-[15px] leading-relaxed text-[var(--dim)]">{d}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
       <section className="flex flex-col gap-3">
         <h2 className="font-display text-[28px] font-light">Sources</h2>
         <ul className="m-0 flex flex-col gap-1.5 pl-5 text-sm leading-relaxed text-[var(--dim)]">

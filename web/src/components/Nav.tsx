@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { InstallButton } from "./PWA";
 
 const LINKS = [
   { href: "/#cases", label: "Demo cases", match: "" },
@@ -36,6 +37,7 @@ export function Nav() {
         </Link>
         <div className="flex items-center gap-1">
           <div className="hidden items-center gap-1 lg:flex">{links("inline-flex min-h-11 items-center")}</div>
+          <InstallButton className="ml-1 hidden sm:inline-flex" />
           {!onExplore && (
             <Link href="/explore" className="ml-2 hidden min-h-11 items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 text-[12px] font-semibold uppercase tracking-[0.1em] text-[#04211d] no-underline hover:bg-[#99f6e4] hover:text-[#04211d] sm:inline-flex">
               Open a case <span aria-hidden="true">→</span>
@@ -51,6 +53,7 @@ export function Nav() {
         {open && (
           <div id="nav-menu" className="absolute right-4 top-full mt-2 flex w-60 flex-col gap-1 rounded-[20px] border border-white/10 bg-[#0f1730] p-2 shadow-2xl sm:right-8 lg:hidden">
             {links("flex min-h-11 items-center")}
+            <InstallButton className="mt-1 justify-center sm:hidden" />
             {!onExplore && <Link href="/explore" onClick={() => setOpen(false)} className="btn btn-primary mt-1 justify-center text-[14px]">Open a case →</Link>}
           </div>
         )}
