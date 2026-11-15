@@ -10,13 +10,13 @@ then shows which trends survive the checks that luck rarely passes.
 
 ## What it does
 
-1. **Open a case anywhere on Earth.** Search for any country, state, island, city or coordinates (place outlines from OpenStreetMap). The app averages the NASA squares inside the outline and runs every check on that place. Or pick a kind of place (desert, rainforest, city, polar...) and one of 21 built-in regions, with suggested variables for each kind.
-2. **What to look at.** The region's variables ranked by signal-to-noise, suggested ones first, each with a plain-English definition.
+1. **Ask a question: "Is ___ getting ___?"** Fill both blanks from dropdowns. The place can be any country, state, island, city or coordinates (place outlines from OpenStreetMap), or one of 21 built-in regions; the app averages the NASA squares inside the outline and runs every check on that place. The second blank picks what to look at (warmer, rainier, snowier, hazier...), with suggestions first for the built-in regions.
+2. **No AI.** Both blanks are plain lists; nothing is guessed from free text.
 3. **The data, four checks, a verdict.** Yearly values with the seasonal cycle removed, the Sen's slope trend with a 95% confidence interval, Mann-Kendall p-values (naive, autocorrelation-corrected, shuffle test), a false-discovery-rate q-value, and a verdict.
    - **Remove El Niño:** regresses out the detrended Niño 3.4 index, so a few big El Niño years can't fake a trend.
    - **Years until we'd know:** for trends that aren't significant yet, how many years of data it would take (Weatherhead et al. 1998).
    - **Walk-forward:** finds the trend in 1980–2002, then checks if it holds in 2003–2025 (confirmed / continuing / faded / reversed / emerging).
-4. **Ask a question.** Type "Is New Jersey getting wetter?" and jump straight to that case (plain keyword matching, no AI).
+4. **Demo cases.** The Arctic, Beijing haze and the Murray-Darling Basin, one click each.
 5. **Same cause, opposite effects (`/compare`).** The Amazon got less rain and the Himalaya & Tibet more, while both got warmer and moister; compare any two places side by side.
 6. **Checked against the ground.** The Beijing haze trend is overlaid with NASA AERONET sun-photometer observations (`pipeline/aeronet.py`).
 7. **Use this case.** Copy a link, download the numbers as CSV, or copy a citation.

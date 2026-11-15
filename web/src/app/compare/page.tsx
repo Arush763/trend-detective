@@ -94,7 +94,7 @@ export default function Compare() {
               <p className="text-[15px] text-[var(--ink-dim)]">{headline(v, inPlace(r), d, meta.years).title} That&apos;s {signed(d.slope_decade)} {n.units} per decade.</p>
               <TrendChart years={meta.years} y={d.annual} perYear={1} slope={d.slope_decade / 10} intercept={d.intercept}
                 ci={[d.ci_decade[0] / 10, d.ci_decade[1] / 10]} units={n.units} title={`${n.short} ${inPlace(r)}`} trendColor={trendToneCss(v, d.slope_decade)} />
-              <p className="text-[13px] text-[var(--ink-dim)]">Holding up over time: {WF[d.walk_forward.code].label}. <Link href={`/explore?place=${r.id}&v=${v}&step=8`}>Open the full case →</Link></p>
+              <p className="text-[13px] text-[var(--ink-dim)]">Holding up over time: {WF[d.walk_forward.code].label}. <Link href={`/explore?place=${r.id}&v=${v}&step=verdict`}>Open the full case →</Link></p>
             </Card>
           );
         })}

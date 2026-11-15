@@ -25,7 +25,8 @@ export async function searchPlaces(q: string): Promise<PlaceHit[]> {
   const r = await fetch(`${NOMINATIM}/search?format=jsonv2&limit=8&q=${encodeURIComponent(q)}`);
   if (!r.ok) throw new Error(`place search failed (${r.status})`);
   const hits: any[] = await r.json();
-  return hits.filter((h) => h.osm_type && h.osm_id).map((h) => ({
+  // Historic boundaries (old borders) share names with today's places and would only confuse.
+  return hits.filter((h) => h.osm_type && h.osm_id && h.category !== "historic" && !String(h.addresstype ?? "").startsWith("historic")).map((h) => ({
     id: `osm:${h.osm_type[0].toUpperCase()}${h.osm_id}`,
     name: h.name || h.display_name.split(",")[0],
     kind: (h.addresstype || h.type || "place").replaceAll("_", " "),
