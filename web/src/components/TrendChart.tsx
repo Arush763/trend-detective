@@ -13,6 +13,8 @@ type Props = {
   split?: number;         // first year of the "checked here" half
   units: string;
   title: string;
+  /** Extra yearly series drawn on top, e.g. ground-station observations: [year, value] pairs (gaps allowed). */
+  overlays?: { label: string; color: string; points: [number, number][] }[];
 };
 
 const R = 18, T = 40, B = 34;
@@ -27,7 +29,7 @@ function ticks(lo: number, hi: number, n = 5) {
 }
 const median = (a: number[]) => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
-export function TrendChart({ years, y, perYear, slope, ci, intercept, split, units, title }: Props) {
+export function TrendChart({ years, y, perYear, slope, ci, intercept, split, units, title, overlays = [] }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   // Draw at the real on-screen width, so the 12px labels stay 12px on a phone instead of shrinking with a fixed viewBox.
   const box = useRef<HTMLElement>(null);
@@ -47,7 +49,7 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
   const b = intercept ?? median(y.map((v, i) => v - slope * t(i)));
   const mid = span / 2, ym = b + slope * mid;
   const band = ci && [[0, ym - ci[1] * mid], [span, ym + ci[1] * mid], [span, ym + ci[0] * mid], [0, ym - ci[0] * mid]];
-  const all = [...y, b, b + slope * span, ...(band ? band.map((p) => p[1]) : [])];
+  const all = [...y, b, b + slope * span, ...(band ? band.map((p) => p[1]) : []), ...overlays.flatMap((o) => o.points.map((p) => p[1]))];
   const pad = (Math.max(...all) - Math.min(...all)) * 0.06 || 1;
   const lo = Math.min(...all) - pad, hi = Math.max(...all) + pad;
   const X = (yr: number) => L + (yr / span) * (W - L - R);
@@ -96,6 +98,15 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
           initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.9, ease: "easeOut" }} />
         {perYear === 1 && y.map((v, i) => <circle key={i} cx={X(t(i))} cy={Y(v)} r={2.4} fill="#c7d2fe" />)}
         <line x1={X(0)} y1={Y(b)} x2={X(span)} y2={Y(b + slope * span)} stroke="#f97316" strokeWidth={3} strokeLinecap="round" />
+        {overlays.map((o) => (
+          <g key={o.label}>
+            {/* Join only consecutive years, so a missing year shows as a gap instead of a made-up line. */}
+            {o.points.slice(1).map(([yr, v], i) => o.points[i][0] === yr - 1 && (
+              <line key={yr} x1={X(o.points[i][0] - years[0])} y1={Y(o.points[i][1])} x2={X(yr - years[0])} y2={Y(v)} stroke={o.color} strokeWidth={1.6} strokeDasharray="5 3" />
+            ))}
+            {o.points.map(([yr, v]) => <rect key={yr} x={X(yr - years[0]) - 3.5} y={Y(v) - 3.5} width={7} height={7} fill={o.color} transform={`rotate(45 ${X(yr - years[0])} ${Y(v)})`} />)}
+          </g>
+        ))}
         {hover != null && (
           <g pointerEvents="none">
             <line x1={X(t(hover))} x2={X(t(hover))} y1={T - 8} y2={H - B} stroke="rgba(232,238,252,0.35)" />
@@ -113,6 +124,7 @@ export function TrendChart({ years, y, perYear, slope, ci, intercept, split, uni
         <span className="flex items-center gap-2"><span className="h-0.5 w-5 bg-[#c7d2fe]" />{perYear === 1 ? "Each year's average" : "Each month, compared with a normal month"}</span>
         <span className="flex items-center gap-2"><span className="h-[3px] w-5 bg-[#f97316]" />Trend line</span>
         {band && <span className="flex items-center gap-2"><span className="h-3 w-5 rounded-sm bg-[#f97316]/30" />Steepest and gentlest trend lines that fit (95% range of the slope)</span>}
+        {overlays.map((o) => <span key={o.label} className="flex items-center gap-2"><span className="h-2 w-2 rotate-45" style={{ background: o.color }} />{o.label}</span>)}
         <span className="ml-auto text-[12px] italic">Hover, touch, or focus the chart and use arrow keys to read a value.</span>
       </figcaption>
     </figure>

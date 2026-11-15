@@ -328,7 +328,7 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
         </svg>
         <div className="flex w-[min(80vw,420px)] shrink-0 flex-col gap-5">
           <h2 className="font-display text-[clamp(48px,6vw,84px)] font-light leading-[0.95] tracking-tight">Open a<br /><span className="text-[var(--accent)]">case</span></h2>
-          <p className="text-lg leading-relaxed text-[var(--soft)]">Three real places, three different stories. Keep scrolling, then open one to walk through the evidence.</p>
+          <p className="text-lg leading-relaxed text-[var(--soft)]">Four real cases, four different stories. Keep scrolling, then open one to walk through the evidence.</p>
         </div>
         {DEMOS.map((c, i) => {
           const d = cases[c.id]?.variables[c.v];
@@ -351,6 +351,27 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
             </Link>
           );
         })}
+        <Link href="/compare"
+          className="group flex h-[min(calc(70svh-4rem),560px)] w-[min(82vw,520px)] shrink-0 flex-col gap-4 rounded-[28px] border border-white/10 bg-[#0f1730]/80 p-6 sm:gap-5 sm:p-8 text-[var(--text)] no-underline transition-colors hover:border-white/30 hover:bg-white/[0.08]">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] uppercase tracking-[0.16em] text-[var(--muted)]">Case 0{DEMOS.length + 1}</span>
+            <Badge tone="real">Opposite trends</Badge>
+          </div>
+          <h3 className="font-display text-[clamp(28px,3vw,40px)] font-light leading-tight">Same warming, opposite rain?</h3>
+          <div className="flex min-h-0 flex-1 flex-col justify-center gap-2">
+            {[["amazon", "Amazon rainforest: less rain", "#c48a3f"], ["himalaya", "Himalaya & Tibet: more rain", "#2dd4bf"]].map(([id, label, col]) => {
+              const d = cases[id]?.variables.PRECTOTCORR;
+              return d && (
+                <div key={id} className="flex flex-col gap-0.5">
+                  <span className="text-[12px] text-[var(--muted)]">{label}</span>
+                  <Sparkline y={d.annual} className="h-12 w-full" color={col} trend={[d.intercept, d.intercept + (d.slope_decade / 10) * (d.annual.length - 1)]} label={`${label}: yearly rain 1980 to 2025`} />
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-base leading-relaxed text-[var(--soft)]">Both got warmer and both have more water vapor in the air, yet rain fell in one and rose in the other. Both trends pass the strict test.</p>
+          <span className="inline-flex items-center gap-2 font-semibold text-[var(--accent)]">Compare them <span className="transition-transform group-hover:translate-x-1" aria-hidden="true">→</span></span>
+        </Link>
         <div className="flex w-[min(80vw,380px)] shrink-0 flex-col gap-5">
           <p className="font-display text-[clamp(32px,3.4vw,48px)] font-light leading-tight">Or start your own.</p>
           <Link href="/explore" className="btn btn-primary self-start">Pick a place →</Link>

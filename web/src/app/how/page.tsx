@@ -39,6 +39,7 @@ const SOURCES: [string, string | null][] = [
   ["Wilks (2016), \"The stippling shows statistically significant grid points\", Bulletin of the American Meteorological Society 97(12).", "https://doi.org/10.1175/BAMS-D-15-00267.1"],
   ["Weatherhead et al. (1998), factors affecting the detection of trends, J. Geophysical Research.", "https://doi.org/10.1029/98JD00995"],
   ["Rantanen et al. (2022), the Arctic has warmed nearly four times faster than the globe since 1979, Communications Earth & Environment.", "https://doi.org/10.1038/s43247-022-00498-3"],
+  ["NASA AERONET (Aerosol Robotic Network), Version 3 Level 2.0 sun-photometer data, Beijing and Beijing-CAMS sites.", "https://aeronet.gsfc.nasa.gov/"],
   ["NOAA Climate Prediction Center, detrended Niño 3.4 index.", "https://www.cpc.ncep.noaa.gov/data/indices/"],
   ["Coastlines: Natural Earth.", "https://www.naturalearthdata.com/"],
 ];
@@ -85,7 +86,7 @@ export default function How() {
         <h2 className="font-display text-[28px] font-light">What to keep in mind</h2>
         <ul className="m-0 flex flex-col gap-2.5 pl-5 text-[15px] leading-relaxed text-[var(--soft)]">
           <li>MERRA-2 is a model kept in line with observations, not raw measurements. Different data sets disagree most in the Arctic, so our Arctic warming is noticeably lower than observation-based studies (about 0.44 vs 0.73 °C per decade).</li>
-          <li>Haze and dust trends can partly come from changes in which satellites were fed into MERRA-2 over the years, not only from the real air.</li>
+          <li>Haze and dust trends can partly come from changes in which satellites were fed into MERRA-2 over the years, not only from the real air. For the Beijing haze case we checked this against NASA AERONET ground stations, which show the same rise and fall.</li>
           <li>Trends are straight lines through yearly averages. A place that rose and then fell (like Beijing&apos;s haze) is better described by the &quot;holding up over time&quot; check.</li>
           <li>Each map square is about 200 km wide, so small places like a single city are averaged with their surroundings.</li>
         </ul>

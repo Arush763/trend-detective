@@ -12,6 +12,7 @@ export default function Landing() {
   useEffect(() => {
     get("meta.json").then(setMeta).catch(() => {});
     get("grid/T2M.json").then(setGrid).catch(() => {});
+    ["amazon", "himalaya"].forEach((id) => get(`regions/${id}.json`).then((r) => setCases((c) => ({ ...c, [id]: r }))).catch(() => {}));
     DEMOS.forEach((d) => get(`regions/${d.place}.json`).then((r) => setCases((c) => ({ ...c, [d.id]: r }))).catch(() => {}));
   }, []);
 
