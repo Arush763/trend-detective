@@ -286,7 +286,7 @@ function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | nu
         <Button type="submit">Investigate</Button>
       </div>
       <p className="text-[13px] text-[var(--ink-dim)]">Try:{" "}
-        {examples.map((x, i) => <span key={x}>{i > 0 && " · "}<button type="button" className="inline-flex min-h-11 items-center text-ink underline decoration-[var(--accent)] underline-offset-4" onClick={() => { setQ(x); submit(x); }}>{x}</button></span>)}
+        {examples.map((x, i) => <span key={x}>{i > 0 && " · "}<button type="button" className="inline-flex min-h-11 items-center text-ink underline decoration-[var(--ink-faint)] underline-offset-4" onClick={() => { setQ(x); submit(x); }}>{x}</button></span>)}
       </p>
       <p role="status" className="text-[14px] text-[var(--ink-dim)]">{msg}</p>
     </form>
@@ -313,7 +313,7 @@ function KindStep({ meta, type, pick, startDemo, ask }: { meta: Meta; type: stri
         })}
       </div>
       <p className="mt-6 text-[15px] text-[var(--ink-dim)]">Not sure? Try a demo case:{" "}
-        {DEMOS.map((x, i) => <span key={x.id}>{i > 0 && " · "}<button type="button" onClick={() => startDemo(x)} className="inline-flex min-h-11 cursor-pointer items-center text-ink underline decoration-[var(--accent)] underline-offset-4">{x.title}</button></span>)}
+        {DEMOS.map((x, i) => <span key={x.id}>{i > 0 && " · "}<button type="button" onClick={() => startDemo(x)} className="inline-flex min-h-11 cursor-pointer items-center text-ink underline decoration-[var(--ink-faint)] underline-offset-4">{x.title}</button></span>)}
         {" · "}<Link href="/compare" className="inline-flex min-h-11 items-center">Same cause, opposite effects: Amazon vs Himalaya</Link>
       </p>
     </section>
@@ -454,7 +454,7 @@ function Bar({ label, value, max, color, text, line }: { label: string; value: n
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
       <span className="w-64 shrink-0 text-[15px] text-[var(--ink-dim)]">{label}</span>
       <div className="h-7 min-w-[140px] flex-1 rounded-md bg-white/[0.06]" aria-hidden="true">
-        <motion.div className="h-full rounded-md" style={line ? { border: "1px solid var(--signal)", background: "repeating-linear-gradient(135deg, rgba(94,234,212,0.18) 0 4px, transparent 4px 8px)" } : { background: color }}
+        <motion.div className="h-full rounded-md" style={line ? { border: "1px solid var(--signal)", background: "repeating-linear-gradient(135deg, color-mix(in srgb, var(--signal) 18%, transparent) 0 4px, transparent 4px 8px)" } : { background: color }}
           initial={reduce ? false : { width: 0 }} animate={{ width: `${Math.min(100, (value / max) * 100)}%` }} transition={{ duration: reduce ? 0 : 0.7 }} />
       </div>
       <span className="hud w-44 shrink-0 !normal-case tabular-nums text-[var(--ink)]">{text}</span>

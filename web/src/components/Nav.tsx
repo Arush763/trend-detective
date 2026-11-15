@@ -53,8 +53,8 @@ export function Nav() {
       <Link href="/" aria-label="Trend Detective, home"
         className="nav-glass fixed left-4 top-4 z-50 flex min-h-11 items-center gap-2.5 rounded-full px-2.5 font-display text-[17px] tracking-[-0.02em] text-ink no-underline sm:pr-4">
         <svg width="24" height="24" viewBox="0 0 28 28" aria-hidden="true">
-          <circle cx="14" cy="14" r="11" fill="none" stroke="var(--accent)" strokeWidth="2" />
-          <path d="M5 17 L10 12 L14 15 L19 8 L23 11" fill="none" stroke="var(--warming)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="14" cy="14" r="11" fill="none" stroke="var(--ink-muted)" strokeWidth="2" />
+          <path d="M5 17 L10 12 L14 15 L19 8 L23 11" fill="none" stroke="var(--ink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <span className="hidden sm:inline">trend detective</span>
       </Link>

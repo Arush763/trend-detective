@@ -7,7 +7,7 @@
  * On install it saves every page, the build files those pages need, and the data for every case, so the site
  * works offline after a single visit. Bump VERSION to drop every old cache.
  */
-const VERSION = "v1";
+const VERSION = "v2"; // v2: black/ash/navy icons
 const PAGES = `td-pages-${VERSION}`, STATIC = `td-static-${VERSION}`, DATA = `td-data-${VERSION}`;
 const ROUTES = ["/", "/explore", "/compare", "/globe", "/how", "/offline"];
 const REGIONS = ["global", "arctic", "greenland", "siberia", "sahara", "sahel", "middle-east", "amazon", "congo", "us-southwest", "us-midwest",

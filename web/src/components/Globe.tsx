@@ -6,7 +6,7 @@ import type { Grid } from "@/lib/data";
 
 export type Mode = "naive" | "noise" | "real";
 // Data colours as RGB triples (the texture is painted on a canvas, which cannot read CSS variables).
-export const FLAT = [52, 58, 72];        // tested, but no trend passed this test: --noise darkened so it reads as background
+export const FLAT = [58, 58, 56];         // tested, but no trend passed this test: --noise darkened so it reads as background
 export const NODATA = [13, 20, 40];      // not measured here, e.g. ocean for land-only variables
 export const LUCK = [232, 121, 249];     // --false-alarm: a false alarm on shuffled data (its direction means nothing)
 // Ramps run dim → bright. Heat-like variables: --warming up, --cooling down. Water variables: wetter = the cooling blue, drier = brown.
@@ -94,7 +94,7 @@ function paint(grid: Grid, mode: Mode, enso: boolean, coastP: Path2D | null) {
   if (coastP) {
     ctx.save();
     ctx.scale(W / 360, H / 180);
-    ctx.strokeStyle = "rgba(238,240,248,0.8)";
+    ctx.strokeStyle = "rgba(236,235,232,0.8)";
     ctx.lineWidth = 0.25;
     ctx.stroke(coastP);
     ctx.restore();
@@ -117,9 +117,9 @@ export function cellAt(grid: Grid, lat: number[], lon: number[], p: { lat: numbe
 export type Pick = { k: number; lat: number; lon: number };
 
 // Stable accessors, so the globe doesn't rebuild its layers on every render.
-const ptLat = (p: number[]) => p[0], ptLng = (p: number[]) => p[1], pathCol = () => "rgb(94,234,212)"; // --signal
-const ringCol = () => (t: number) => `rgba(244,246,251,${1 - t})`;
-const ATMOSPHERE = "#4aa3ff"; // --cooling, a soft tint (WebGL cannot read CSS variables)
+const ptLat = (p: number[]) => p[0], ptLng = (p: number[]) => p[1], pathCol = () => "rgb(236,235,232)"; // --signal (ash ink on Night)
+const ringCol = () => (t: number) => `rgba(236,235,232,${1 - t})`;
+const ATMOSPHERE = "#2f4fa8"; // navy accent, lifted a little so the glow shows on black (WebGL cannot read CSS variables)
 
 const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 /** Great-circle angle between two lat/lng points, in degrees. */
