@@ -13,6 +13,9 @@ A website where anyone, with no statistics background, can investigate whether a
 
 - **Landing page:** a scroll-driven story, from the problem to a world dot map that steps through the tests, then three demo cases and the four checks.
 - **Explore a place (step by step):** choose a kind of place (desert, rainforest, big city, polar…), then a place, then what to look at. The app suggests variables for each kind of place. Next you see the data, then one page for each of the four checks, then a plain-language verdict with a globe zoomed to that place.
+- **Ask a question:** type "Is New Jersey getting wetter?" and jump straight to that case. Plain keyword matching, no AI.
+- **Same cause, opposite effects (Case 04):** rain fell over the Amazon (−0.32 mm/day per decade) and rose over the Himalaya & Tibet (+0.13), both passing the strict test, while both regions got warmer and their air holds more water vapor. Warmer air holds more water, but winds decide where it falls. Any two places can be compared side by side.
+- **Use this case:** copy a link, download the numbers as CSV, or copy a citation.
 - **Globe:** a 3D globe of every 2° × 2.5° square of the planet for 9 variables. Step through the simple test, the luck test (shuffled data) and the strict test, and click any spot to see its numbers.
 - **How it works:** the method, a glossary that defines every term and number on the site, the limits, and the sources.
 
@@ -30,6 +33,7 @@ A website where anyone, with no statistics background, can investigate whether a
 - **9 variables:** air temperature, water vapor, rain and snow, evaporation, root-zone soil moisture, snow on the ground, surface runoff, aerosol (haze) and dust optical depth.
 - **21 curated regions**, from the Arctic and the Sahara to Delhi and the Chesapeake Bay, plus a global grid of 12,960 squares.
 - **NOAA CPC detrended Niño 3.4 index**, used to remove El Niño.
+- **NASA AERONET** Version 3 Level 2.0 sun-photometer data (Beijing 2002–2018, Beijing-CAMS 2015–2025), to check the Beijing haze case against the ground.
 
 ## Method
 
@@ -60,7 +64,7 @@ Across the variables, the strict test removes the most for rain and snow (4,646 
 ### Demo cases
 
 - **Arctic air temperature:** Real signal. +0.44 °C per decade (95% CI 0.34–0.55), about 2 °C since 1980. It passes all four checks and holds after removing El Niño.
-- **Beijing haze:** Not proven yet. A simple test says haze rose (p = 0.002), but haze climbed until the mid-2000s, stayed high until about 2015, and then fell. After correcting for autocorrelation and multiple testing, q = 0.11. Since 2003 there has been a significant decline.
+- **Beijing haze:** Not proven yet. A simple test says haze rose (p = 0.002), but haze climbed until the mid-2000s, stayed high until about 2015, and then fell. After correcting for autocorrelation and multiple testing, q = 0.11. Since 2003 there has been a significant decline. NASA AERONET ground stations in Beijing show the same story (yearly correlation with MERRA-2: 0.62 for 2002–2018 and 0.85 for 2015–2025; peak in 2006 in both), so the trend is not just an artefact of changing satellite inputs.
 - **Murray-Darling Basin surface runoff:** Not proven yet. Down about 27% since 1980 (q = 0.25). The year-to-year swings are so large that, at this size, it would take about 70 more years of data for a 90% chance of detecting it.
 
 ## Limitations

@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { DEMOS, NICE, TYPE_LABEL, VERDICT, cap, checks, fmt, get, pfmt, headline, inPlace, placeName, signed, type Grid, type Meta, type Region } from "@/lib/data";
+import { DEMOS, NICE, TYPE_LABEL, VERDICT, cap, checks, fmt, get, parseQuestion, pfmt, headline, inPlace, placeName, signed, type Grid, type Meta, type Region } from "@/lib/data";
 import { TrendChart } from "@/components/TrendChart";
 import { Badge, Card } from "@/components/ui";
 import { Globe, GlobeScale, cellAt, type Pick } from "@/components/Globe";
 import { CellInfo } from "@/components/CellInfo";
+import { ShareTools } from "@/components/ShareTools";
 
 const STEPS = ["Kind of place", "Place", "What to look at", "The data", "Check 1", "Check 2", "Check 3", "Check 4", "Verdict"];
 const DATA = 3, VERDICT_STEP = 8;
@@ -91,7 +92,11 @@ export default function Explore() {
   }, [ready, type, placeId, v, caseId, step]);
 
   const info = region?.id === placeId ? region : null;
-  const d = info && v ? info.variables[v] ?? null : null;
+  const raw = info && v ? info.variables[v] ?? null : null;
+  // A variable this place doesn't have (from an edited link or a question), or snow where there's essentially none:
+  // show the "what to look at" step instead of a case we can't make.
+  const badVar = !!info && step >= DATA && (!raw || (v === "SNOMAS" && raw.mean < TRACE_SNOW));
+  const d = badVar ? null : raw;
 
   if (err) return <p className="text-red-300">Could not load the data ({err}). Try reloading the page.</p>;
   if (!meta || !ready) return <Skeleton />;
@@ -99,6 +104,9 @@ export default function Explore() {
   const canReach = (i: number) => i <= 0 || (i === 1 && !!type) || (i === 1 && !!placeId) || (i === 2 && !!info) || (i >= DATA && !!d);
   const go = (i: number) => canReach(i) && setStep(i);
   const startDemo = (x: (typeof DEMOS)[number]) => { setCaseId(x.id); setType(""); setPlaceId(x.place); setV(x.v); setStep(DATA); };
+  const ask = (place: string, k: string | null) => {
+    setCaseId(""); setType(""); setPlaceId(place); setV(k ?? ""); setStep(k ? DATA : 2);
+  };
   const newCase = () => { setCaseId(""); setType(""); setPlaceId(""); setV(""); setStep(0); };
   // e.detail > 1 is the second click of a double-click: ignore it so it can't skip a page.
   const once = (f: () => void) => (e: React.MouseEvent) => { if (e.detail <= 1) f(); };
@@ -134,10 +142,11 @@ export default function Explore() {
             setType(t); setCaseId("");
             if (placeId && meta.regions.find((r: any) => r.id === placeId)?.type !== t) { setPlaceId(""); setV(""); }
             setStep(1);
-          }} startDemo={startDemo} />}
+          }} startDemo={startDemo} ask={ask} />}
           {step === 1 && <PlaceStep meta={meta} type={type} placeId={placeId} pick={(id) => { setPlaceId(id); setV(""); setCaseId(""); setStep(2); }} />}
-          {step === 2 && (info ? <WhatStep meta={meta} info={info} v={v} pick={(k) => { setV(k); setCaseId(""); setStep(DATA); }} /> : <Loading />)}
-          {step >= DATA && (!info || !d ? <Loading /> : (
+          {(step === 2 || badVar) && (info ? <WhatStep meta={meta} info={info} v={v} pick={(k) => { setV(k); setCaseId(""); setStep(DATA); }}
+            note={badVar && v ? `We don't have a meaningful ${NICE[v]?.noun ?? "record"} record ${inPlace(info)}${v === "SNOMAS" ? " (it almost never snows there)" : ""}. Pick something else to look at.` : undefined} /> : <Loading />)}
+          {step >= DATA && !badVar && (!info || !d ? <Loading /> : (
             step === DATA ? <DataStep meta={meta} info={info} v={v} d={d} />
               : step < VERDICT_STEP ? <CheckStep i={step - DATA - 1} meta={meta} info={info} v={v} d={d} />
                 : <VerdictStep meta={meta} info={info} v={v} d={d} globalR={globalR} go={go} />
@@ -200,11 +209,39 @@ function Question({ eyebrow, title, sub }: { eyebrow: string; title: string; sub
 
 const CHOICE = "flex cursor-pointer flex-col gap-1.5 rounded-[20px] border border-[var(--line)] bg-white/[0.04] p-5 text-left text-[var(--text)] transition-colors hover:border-[var(--accent)]/50 hover:bg-white/[0.07] aria-pressed:border-[var(--accent)] aria-pressed:bg-[var(--accent)]/10 aria-pressed:ring-1 aria-pressed:ring-[var(--accent)]";
 
-function KindStep({ meta, type, pick, startDemo }: { meta: Meta; type: string; pick: (t: string) => void; startDemo: (x: (typeof DEMOS)[number]) => void }) {
+function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | null) => void }) {
+  const [q, setQ] = useState("");
+  const [msg, setMsg] = useState("");
+  const examples = ["Is New Jersey getting wetter?", "Is the Arctic warming?", "Is Beijing's air getting hazier?"];
+  const submit = (text: string) => {
+    const { place, v } = parseQuestion(text, meta.regions);
+    if (place) { setMsg(""); ask(place, v); return; }
+    const some = meta.regions.filter((r: any) => r.id !== "global").slice(0, 6).map((r: any) => r.name).join(", ");
+    setMsg(v ? `We know you're asking about ${NICE[v].noun}, but not where. We have ${meta.regions.length} places, like ${some}, or "Earth" for the whole planet.`
+      : `We couldn't match that to a place in our data. Try a place like ${some}, and a word like warmer, wetter, snow or haze.`);
+  };
+  return (
+    <form className="mb-8 flex flex-col gap-3 rounded-[20px] border border-[var(--accent)]/30 bg-[var(--accent)]/[0.06] p-5" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
+      <label htmlFor="ask" className="font-display text-xl font-normal">Ask a question</label>
+      <div className="flex flex-wrap gap-2">
+        <input id="ask" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Is New Jersey getting wetter?" autoComplete="off"
+          className="min-h-12 min-w-0 flex-[1_1_260px] rounded-full border border-white/20 bg-[#070b1a]/60 px-5 text-[16px] text-[var(--text)] placeholder:text-[var(--muted)]" />
+        <button type="submit" className="btn btn-primary">Investigate →</button>
+      </div>
+      <p className="text-[13px] text-[var(--muted)]">Try:{" "}
+        {examples.map((x, i) => <span key={x}>{i > 0 && " · "}<button type="button" className="inline-flex min-h-11 items-center text-[var(--accent)] underline-offset-4 hover:underline" onClick={() => { setQ(x); submit(x); }}>{x}</button></span>)}
+      </p>
+      <p role="status" className="text-[14px] text-[var(--maybe)]">{msg}</p>
+    </form>
+  );
+}
+
+function KindStep({ meta, type, pick, startDemo, ask }: { meta: Meta; type: string; pick: (t: string) => void; startDemo: (x: (typeof DEMOS)[number]) => void; ask: (place: string, v: string | null) => void }) {
   const types = [...new Set<string>(meta.regions.map((r: any) => r.type))];
   return (
     <section>
-      <Question eyebrow="Question 1" title="What kind of place do you want to investigate?" sub="Different places change in different ways. We'll suggest what to look at for each kind." />
+      <AskBox meta={meta} ask={ask} />
+      <Question eyebrow="Or step by step · Question 1" title="What kind of place do you want to investigate?" sub="Different places change in different ways. We'll suggest what to look at for each kind." />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {types.map((t) => {
           const rs = meta.regions.filter((r: any) => r.type === t);
@@ -218,6 +255,7 @@ function KindStep({ meta, type, pick, startDemo }: { meta: Meta; type: string; p
       </div>
       <p className="mt-6 text-[15px] text-[var(--soft)]">Not sure? Try a demo case:{" "}
         {DEMOS.map((x, i) => <span key={x.id}>{i > 0 && " · "}<button type="button" onClick={() => startDemo(x)} className="inline-flex min-h-11 cursor-pointer items-center font-semibold text-[var(--accent)] underline-offset-4 hover:underline">{x.title}</button></span>)}
+        {" · "}<Link href="/compare" className="inline-flex min-h-11 items-center font-semibold">Same cause, opposite effects: Amazon vs Himalaya</Link>
       </p>
     </section>
   );
@@ -240,7 +278,7 @@ function PlaceStep({ meta, type, placeId, pick }: { meta: Meta; type: string; pl
   );
 }
 
-function WhatStep({ meta, info, v, pick }: { meta: Meta; info: Region; v: string; pick: (k: string) => void }) {
+function WhatStep({ meta, info, v, pick, note }: { meta: Meta; info: Region; v: string; pick: (k: string) => void; note?: string }) {
   const suggested: string[] = meta.regions.find((r: any) => r.id === info.id).suggested;
   const order = [...info.screener]
     .filter((k: string) => !(k === "SNOMAS" && info.variables[k].mean < TRACE_SNOW))
@@ -249,6 +287,7 @@ function WhatStep({ meta, info, v, pick }: { meta: Meta; info: Region; v: string
     <section>
       <Question eyebrow={`Question 3 · ${info.name}`} title={`What do you want to look at ${inPlace(info)}?`}
         sub={`${info.blurb} The ones marked ★ matter most for a ${(TYPE_LABEL[info.type] ?? info.type).toLowerCase()} place.`} />
+      {note && <p role="status" className="mb-4 rounded-2xl border border-[var(--maybe)]/40 bg-[var(--maybe)]/10 px-5 py-3 text-[15px] text-[var(--text)]">{note}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {order.map((k: string) => (
           <button key={k} type="button" onClick={() => pick(k)} aria-pressed={k === v} className={CHOICE}>
@@ -268,6 +307,18 @@ function DataStep({ meta, info, v, d }: { meta: Meta; info: Region; v: string; d
   const yearly: number[] = d.annual.map((y: number, i: number) => (enso ? y - d.enso_coef * meta.enso_annual[i] : y));
   const slope = (enso ? d.slope_enso_decade : d.slope_decade) / 10;
   const ensoOn = enso && view === "year";
+  // Beijing haze: ground-station observations to check MERRA-2 against (see pipeline/aeronet.py).
+  const [check, setCheck] = useState<any>(null);
+  const showCheck = info.id === "beijing" && v === "TOTEXTTAU";
+  useEffect(() => {
+    if (!showCheck) return;
+    let live = true;
+    get("validation/beijing_aeronet.json").then((x) => live && setCheck(x)).catch(() => {});
+    return () => { live = false; };
+  }, [showCheck]);
+  const overlays = showCheck && check && view === "year" && !enso
+    ? check.sites.map((st: any, i: number) => ({ label: `NASA AERONET ground station "${st.site}"`, color: i ? "#5eead4" : "#fbbf24", points: st.years.map((y: number, j: number) => [y, st.aod550[j]]) }))
+    : [];
   return (
     <section>
       <Question eyebrow={`The data · ${info.name} · ${n.short}`} title={headline(v, inPlace(info), d, meta.years).title}
@@ -287,7 +338,7 @@ function DataStep({ meta, info, v, d }: { meta: Meta; info: Region; v: string; d
         </div>
         {view === "year"
           ? <TrendChart years={meta.years} y={yearly} perYear={1} slope={slope} intercept={enso ? undefined : d.intercept}
-              ci={enso ? undefined : [d.ci_decade[0] / 10, d.ci_decade[1] / 10]} units={n.units} title={`${n.short} ${inPlace(info)}`} />
+              ci={enso ? undefined : [d.ci_decade[0] / 10, d.ci_decade[1] / 10]} units={n.units} title={`${n.short} ${inPlace(info)}`} overlays={overlays} />
           : <TrendChart years={meta.years} y={d.monthly_anom} perYear={12} slope={d.slope_decade / 10} units={n.units} title={`${n.short} ${inPlace(info)}, monthly`} />}
         <p className="text-sm text-[var(--soft)]">
           {view === "year"
@@ -296,6 +347,7 @@ function DataStep({ meta, info, v, d }: { meta: Meta; info: Region; v: string; d
           {ensoOn && ` El Niño (a natural Pacific Ocean cycle) removed: the trend is ${signed(d.slope_enso_decade)} ${n.units} per decade instead of ${signed(d.slope_decade)} (corrected p ${pfmt(d.p_enso_hr)}).`}
         </p>
       </Card>
+      {showCheck && check && <GroundCheck check={check} />}
     </section>
   );
 }
@@ -460,7 +512,34 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
           ))}
         </dl>
       </details>
+      <ShareTools title={`${n.short} ${inPlace(info)}, ${meta.years[0]}–${meta.years.at(-1)}: ${vd.label}`} filename={`trend-detective-${info.id}-${v}`}
+        header={["year", `${v} (${n.units}, yearly mean)`, "trend line (Sen's slope)"]}
+        rows={d.annual.map((x: number, i: number) => [meta.years[i], x, +(d.intercept + (d.slope_decade / 10) * i).toPrecision(5)])}
+        notes={[`${n.short} ${inPlace(info)} (${info.name}; box ${info.box.join(", ")} as lat min, lat max, lon min, lon max)`,
+          "Source: NASA GMAO MERRA-2 monthly reanalysis via NASA GES DISC; yearly means of the monthly values.",
+          `Sen's slope ${d.slope_decade} ${n.units} per decade (95% range ${d.ci_decade[0]} to ${d.ci_decade[1]}); Mann-Kendall p ${d.p_naive}; Hamed-Rao p ${d.p_hr}; false-alarm rate q ${d.q}; verdict: ${vd.label}`]} />
       <p className="text-sm text-[var(--muted)]">Want the whole planet? <Link href={`/globe?v=${v}`}>Open the globe for {n.noun}</Link>.</p>
     </section>
+  );
+}
+
+/** Beijing haze: what NASA's AERONET ground stations saw, next to MERRA-2. */
+function GroundCheck({ check }: { check: any }) {
+  const [a, b] = check.sites;
+  return (
+    <Card className="mt-5 flex flex-col gap-3 border-[var(--accent)]/30">
+      <h2 className="font-display text-xl font-normal">Checked against the ground</h2>
+      <p className="text-[15px] leading-relaxed text-[var(--soft)]">
+        MERRA-2&apos;s haze trend could partly come from changes in which satellites were fed into the model. So we compared it with
+        NASA&apos;s AERONET sun photometers in Beijing: two ground instruments, each one consistent over its whole record (the diamonds on the chart).
+        They tell the same story: haze highest around {a.peak_year} and falling since the mid-2010s. Year by year they move with MERRA-2
+        (correlation {a.correlation} for &quot;{a.site}&quot;, {a.years[0]}–{a.years.at(-1)}, and {b.correlation} for &quot;{b.site}&quot;, {b.years[0]}–{b.years.at(-1)}),
+        and the two stations agree where they overlap.
+      </p>
+      <p className="text-[13px] leading-relaxed text-[var(--muted)]">
+        The stations read higher than MERRA-2 (about {a.mean_ratio_to_merra2}× and {b.mean_ratio_to_merra2}×) because they sit in the city, while MERRA-2 averages a region about 300 km across.
+        MERRA-2 also takes in AERONET and satellite data, so this checks consistency rather than being fully independent. Years with fewer than 9 measured months are left out.
+      </p>
+    </Card>
   );
 }
