@@ -12,6 +12,7 @@ Weather jumps around every year. If you test enough places on Earth for a trend,
 A website where anyone, with no statistics background, can investigate whether a place on Earth is really changing. We borrowed an idea from finance: test enough stocks and some look like winners by luck, so quants run strict checks before trusting a pattern. We apply the same checks to 46 years of NASA Earth data.
 
 - **Landing page:** a scroll-driven story, from the problem to a world dot map that steps through the tests, then four cases (three single places and the Case 04 comparison) and the four checks.
+- **Any place on Earth:** search for a country, state, island, city or coordinates. The app takes the place's outline from OpenStreetMap, averages the NASA squares inside it (about 110 km each; a place smaller than one square uses the square it sits in), and runs the same four checks in the browser. Its tests join the app's false-discovery family, so the strict test stays strict.
 - **Explore a place (step by step):** choose a kind of place (desert, rainforest, big city, polar…), then a place, then what to look at. The app suggests variables for each kind of place. Next you see the data, then one page for each of the four checks, then a plain-language verdict with a globe zoomed to that place.
 - **Ask a question:** type "Is New Jersey getting wetter?" and jump straight to that case. Plain keyword matching, no AI.
 - **Same cause, opposite effects (Case 04):** rain fell over the Amazon (−0.32 mm/day per decade) and rose over the Himalaya & Tibet (+0.13), both passing the strict test, while both regions got warmer and their air holds more water vapor. Warmer air holds more water, but winds decide where it falls. Any two places can be compared side by side.
@@ -33,7 +34,7 @@ A website where anyone, with no statistics background, can investigate whether a
 
 - **NASA GMAO MERRA-2** monthly reanalysis, 1980–2025, from NASA GES DISC. Collections M2TMNXSLV, M2TMNXFLX, M2TMNXLND and M2TMNXAER v5.12.4, about 2,200 files, subset through Earthdata Cloud OPeNDAP.
 - **9 variables:** air temperature, water vapor, rain and snow, evaporation, root-zone soil moisture, snow on the ground, surface runoff, aerosol (haze) and dust optical depth.
-- **21 curated regions**, from the Arctic and the Sahara to Delhi and the Chesapeake Bay, plus a global grid of 12,960 squares.
+- **21 curated regions**, from the Arctic and the Sahara to Delhi and the Chesapeake Bay, plus a global grid of 12,960 squares, plus yearly values for all 51,840 squares of a 1° × 1.25° grid (averaged from MERRA-2's native 0.5° × 0.625°) so any place can be tested.
 - **NOAA CPC detrended Niño 3.4 index**, used to remove El Niño.
 - **NASA AERONET** Version 3 Level 2.0 sun-photometer data (Beijing 2002–2018, Beijing-CAMS 2015–2025), to check the Beijing haze case against the ground.
 
@@ -79,12 +80,13 @@ Across the variables, the strict test removes the most for rain and snow (4,646 
 ## Tech
 
 - **Pipeline:** Python (numpy, scipy, xarray, netCDF4, pymannkendall for tests), writing static JSON. `pipeline/aeronet.py` adds the Beijing ground-station check.
+- **Any place:** `pipeline/build_places.py` packs those yearly values into 648 tiles of 10° × 10° (about 66 KB each), so a place downloads only the tiles it covers. `web/src/lib/stats.ts` is a line-by-line port of `stats.py`; `web/scripts/check-stats.ts` checks it against the Python on all 184 built-in series (every statistic matches). Place search and outlines: OpenStreetMap Nominatim.
 - **Web:** Next.js 16 + Tailwind CSS 4, Motion (scroll-scrubbed animation), Lenis (smooth scrolling), react-globe.gl / three.js (3D globe). Charts are hand-built in SVG and canvas. Prerendered static pages on Vercel.
 - **App (PWA):** a web app manifest with standard and maskable icons and shortcuts, plus a hand-written service worker. Pages load from the network first and fall back to a saved copy (or an offline page). Build files are served from the cache, since their names change with every build. NASA data shows the saved copy at once and refreshes in the background.
 
 ## Run it
 
-See [README.md](README.md). The processed data is committed, so to run the site you only need `cd web && npm install && npm run dev`. To rebuild the data: `pip install -r pipeline/requirements.txt`, set `EARTHDATA_TOKEN`, then run `python pipeline/download_merra2.py`, `python pipeline/build.py` and `python pipeline/aeronet.py`.
+See [README.md](README.md). The processed data is committed, so to run the site you only need `cd web && npm install && npm run dev`. To rebuild the data: `pip install -r pipeline/requirements.txt`, set `EARTHDATA_TOKEN`, then run `python pipeline/download_merra2.py`, `python pipeline/build.py`, `python pipeline/build_places.py` and `python pipeline/aeronet.py`.
 
 ## References
 

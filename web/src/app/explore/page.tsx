@@ -9,6 +9,7 @@ import { Badge, Brackets, Button, Card, Hud, SectionLabel, VerdictStamp } from "
 import { Globe, GlobeScale, cellAt, trendToneCss, type Pick } from "@/components/Globe";
 import { CellInfo } from "@/components/CellInfo";
 import { ShareTools } from "@/components/ShareTools";
+import { isCustomPlace, loadPlace, searchPlaces, type PlaceHit } from "@/lib/places";
 
 const STEPS = ["Kind of place", "Place", "What to look at", "The data", "Check 1", "Check 2", "Check 3", "Check 4", "Verdict"];
 const DATA = 3, VERDICT_STEP = 8;
@@ -57,7 +58,7 @@ export default function Explore() {
       setMeta(m);
       // A place in the URL that isn't in our data (e.g. a mistyped link): start over instead of failing.
       const place = new URLSearchParams(window.location.search).get("place");
-      if (place && !m.regions.some((r: any) => r.id === place)) { setPlaceId(""); setV(""); setCaseId(""); setStep(0); }
+      if (place && !isCustomPlace(place) && !m.regions.some((r: any) => r.id === place)) { setPlaceId(""); setV(""); setCaseId(""); setStep(0); }
     }).catch((e) => setErr(String(e)));
     get("regions/global.json").then(setGlobalR).catch(() => {});
   }, []);
@@ -81,8 +82,13 @@ export default function Explore() {
 
   // Load the chosen place, ignoring answers that arrive after the choice has changed.
   useEffect(() => {
-    if (!meta || !placeId || !meta.regions.some((r: any) => r.id === placeId)) return;
+    if (!meta || !placeId) return;
     let live = true;
+    if (isCustomPlace(placeId)) {
+      loadPlace(placeId, meta).then((r) => live && setRegion(r)).catch((e) => live && setErr(`that place: ${e.message ?? e}`));
+      return () => { live = false; };
+    }
+    if (!meta.regions.some((r: any) => r.id === placeId)) return;
     get(`regions/${placeId}.json`).then((r) => live && setRegion(r)).catch((e) => live && setErr(String(e)));
     return () => { live = false; };
   }, [meta, placeId]);
@@ -266,6 +272,52 @@ function Question({ eyebrow, title, sub }: { eyebrow: string; title: string; sub
 
 const CHOICE = "glass relative flex cursor-pointer flex-col gap-1.5 !rounded-[var(--radius-sm)] p-5 text-left text-[var(--ink)] transition-colors hover:border-[var(--signal)]/50 aria-pressed:border-[var(--signal)]/60";
 
+/** Any place on Earth: a country, state, island, city or "lat, lon". Searches on submit only (Nominatim's usage policy). */
+function PlaceSearch({ pick }: { pick: (id: string) => void }) {
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState<PlaceHit[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const submit = async () => {
+    if (!q.trim() || busy) return;
+    setBusy(true); setMsg("");
+    try {
+      const h = await searchPlaces(q.trim());
+      setHits(h);
+      if (!h.length) setMsg("No place found. Try a country, state, island or city, or coordinates like 64.1, -21.9.");
+    } catch {
+      setMsg("Place search isn't reachable right now. You can still use the places below.");
+    } finally { setBusy(false); }
+  };
+  return (
+    <form className="glass mb-4 flex flex-col gap-3 !rounded-[var(--radius-sm)] p-5" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <label htmlFor="anywhere"><SectionLabel>ANY PLACE ON EARTH</SectionLabel></label>
+      <div className="flex flex-wrap gap-2">
+        <input id="anywhere" value={q} onChange={(e) => setQ(e.target.value)} placeholder="A country, state, island, city, or lat, lon" autoComplete="off"
+          className="min-h-12 min-w-0 flex-[1_1_260px] rounded-full border border-[var(--hairline)] bg-[var(--ground-sunken)] px-5 text-[16px] text-[var(--ink)] placeholder:text-[var(--ink-dim)]" />
+        <Button type="submit" aria-busy={busy}>{busy ? "Searching" : "Find it"}</Button>
+      </div>
+      {hits && hits.length > 0 && (
+        <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Places found">
+          {hits.map((h) => (
+            <li key={h.id}>
+              <button type="button" onClick={() => pick(h.id)} className="rolllink w-full !normal-case">
+                <span className="flex min-w-0 flex-col items-start gap-0.5 py-2 text-left">
+                  <span className="nudge text-[16px] font-normal text-[var(--ink)]">{h.name}</span>
+                  <span className="max-w-full truncate font-mono text-[11px] uppercase text-[var(--ink-dim)]">{h.kind} · {h.detail}</span>
+                </span>
+                <span aria-hidden="true" className="rolllink-arrow">→</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p role="status" className="text-[14px] text-[var(--ink-dim)]">{msg}</p>
+      <p className="text-[12px] text-[var(--ink-dim)]">Place search and outlines: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>, via Nominatim. NASA data is about 110 km per square, so small places use the square they sit in.</p>
+    </form>
+  );
+}
+
 function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | null) => void }) {
   const [q, setQ] = useState("");
   const [msg, setMsg] = useState("");
@@ -274,8 +326,8 @@ function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | nu
     const { place, v } = parseQuestion(text, meta.regions);
     if (place) { setMsg(""); ask(place, v); return; }
     const some = meta.regions.filter((r: any) => r.id !== "global").slice(0, 6).map((r: any) => r.name).join(", ");
-    setMsg(v ? `We know you're asking about ${NICE[v].noun}, but not where. We have ${meta.regions.length} places, like ${some}, or "Earth" for the whole planet.`
-      : `We couldn't match that to a place in our data. Try a place like ${some}, and a word like warmer, wetter, snow or haze.`);
+    setMsg(v ? `We know you're asking about ${NICE[v].noun}, but not where. Name one of our ${meta.regions.length} built-in places, like ${some}, or find any place on Earth with the search above.`
+      : `That isn't one of our built-in places (like ${some}). Find any place on Earth with the search above, or add a word like warmer, wetter, snow or haze.`);
   };
   return (
     <form className="glass mb-8 flex flex-col gap-3 !rounded-[var(--radius-sm)] p-5" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
@@ -283,7 +335,7 @@ function AskBox({ meta, ask }: { meta: Meta; ask: (place: string, v: string | nu
       <div className="flex flex-wrap gap-2">
         <input id="ask" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Is New Jersey getting wetter?" autoComplete="off"
           className="min-h-12 min-w-0 flex-[1_1_260px] rounded-full border border-white/20 bg-[var(--void)]/60 px-5 text-[16px] text-[var(--ink)] placeholder:text-[var(--ink-dim)]" />
-        <Button type="submit">Investigate</Button>
+        <Button type="submit" variant="glass">Investigate</Button>
       </div>
       <p className="text-[13px] text-[var(--ink-dim)]">Try:{" "}
         {examples.map((x, i) => <span key={x}>{i > 0 && " · "}<button type="button" className="inline-flex min-h-11 items-center text-ink underline decoration-[var(--ink-faint)] underline-offset-4" onClick={() => { setQ(x); submit(x); }}>{x}</button></span>)}
@@ -297,6 +349,7 @@ function KindStep({ meta, type, pick, startDemo, ask }: { meta: Meta; type: stri
   const types = [...new Set<string>(meta.regions.map((r: any) => r.type))];
   return (
     <section>
+      <PlaceSearch pick={(id) => ask(id, null)} />
       <AskBox meta={meta} ask={ask} />
       <Question eyebrow="Or step by step · Question 1" title="What kind of place do you want to investigate?" sub="Different places change in different ways. We'll suggest what to look at for each kind." />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -340,14 +393,14 @@ function PlaceStep({ meta, type, placeId, pick }: { meta: Meta; type: string; pl
 }
 
 function WhatStep({ meta, info, v, pick, note }: { meta: Meta; info: Region; v: string; pick: (k: string) => void; note?: string }) {
-  const suggested: string[] = meta.regions.find((r: any) => r.id === info.id).suggested;
+  const suggested: string[] = meta.regions.find((r: any) => r.id === info.id)?.suggested ?? [];
   const order = [...info.screener]
     .filter((k: string) => !(k === "SNOMAS" && info.variables[k].mean < TRACE_SNOW))
     .sort((a: string, b: string) => +suggested.includes(b) - +suggested.includes(a));
   return (
     <section>
       <Question eyebrow={`Question 3 · ${info.name}`} title={`What do you want to look at ${inPlace(info)}?`}
-        sub={`${info.blurb} The ones marked ★ matter most for a ${(TYPE_LABEL[info.type] ?? info.type).toLowerCase()} place.`} />
+        sub={info.custom ? `${info.blurb} Sorted by how clearly each one is changing.` : `${info.blurb} The ones marked ★ matter most for a ${(TYPE_LABEL[info.type] ?? info.type).toLowerCase()} place.`} />
       {note && <p role="status" className="mb-4 !rounded-2xl glass px-5 py-3 text-[15px] text-[var(--ink)]">{note}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {order.map((k: string) => (
@@ -392,7 +445,7 @@ function DataStep({ meta, info, v, d }: { meta: Meta; info: Region; v: string; d
           <h2 className="font-display text-xl">{view === "year" ? `Average ${n.noun} each year` : `${n.short} each month, compared with a normal month`}</h2>
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Chart view">
             <button type="button" className="pill" aria-pressed={view === "year"} onClick={() => setView("year")}>Yearly averages</button>
-            <button type="button" className="pill" aria-pressed={view === "month"} onClick={() => setView("month")}>Month by month</button>
+            {d.monthly_anom && <button type="button" className="pill" aria-pressed={view === "month"} onClick={() => setView("month")}>Month by month</button>}
             <label className={`pill flex items-center gap-2 ${view === "month" ? "pointer-events-none opacity-40" : ""}`}>
               <input type="checkbox" className="h-[18px] w-[18px] accent-[var(--signal)]" checked={ensoOn} disabled={view === "month"} onChange={(e) => setEnso(e.target.checked)} />
               Remove El Niño
@@ -510,7 +563,8 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
   const ratio = gl && gl.verdict === "significant" && Math.sign(gl.slope_decade) === Math.sign(d.slope_decade) ? d.slope_decade / gl.slope_decade : null;
   const focus = useMemo(() => {
     const [a, b, c, e] = info.box;
-    return info.id === "global" ? { lat: 30, lng: -20, altitude: 2.2 }
+    return info.center ? { ...info.center, altitude: Math.min(2.2, Math.max(1.5, Math.max(b - a, Math.min(e - c, 120)) / 45 + 1.2)) }
+      : info.id === "global" ? { lat: 30, lng: -20, altitude: 2.2 }
       : info.id === "arctic" ? { lat: 85, lng: 0, altitude: 2 }
         : { lat: (a + b) / 2, lng: (c + e) / 2, altitude: Math.min(2.2, Math.max(1.5, Math.max(b - a, e - c) / 45 + 1.2)) }; // far enough out to still read as a globe
   }, [info]);
@@ -543,7 +597,7 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
                 ? <>At this size, it would take many decades more data (over {Math.floor(d.years_more / 10) * 10} years) to be fairly sure. The trend is small next to the normal ups and downs.</>
                 : d.years_more > 0
                   ? <>If this trend is real and keeps its current size, about {d.years_more} more years of data (around {meta.years.at(-1) + d.years_more}) would give a 90% chance of detecting it at this one place. The strict all-tests check may need a little longer.</>
-                  : <>By this estimate the record is about long enough already. The strict test also corrects for 184 tests at once, so it may need a few more years.</>}
+                  : <>By this estimate the record is about long enough already. The strict test also corrects for {d.tests ?? 184} tests at once, so it may need a few more years.</>}
             </Card>
           )}
           {gl && info.id !== "global" && (
@@ -570,7 +624,7 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
         <figure className="m-0 flex min-w-0 flex-[1_1_400px] flex-col items-center gap-3">
           <figcaption className="self-start text-[15px] text-[var(--ink-dim)]"><b className="font-normal text-[var(--ink)]">{n.short} trends around {placeName(info)}</b> (outlined), strict test. Click any square for its numbers.</figcaption>
           <div className="w-full max-w-[min(520px,82vw)]">
-            <Globe grid={g} mode="real" focus={focus} box={info.id === "global" ? undefined : info.box} pick={pick}
+            <Globe grid={g} mode="real" focus={focus} box={info.id === "global" ? undefined : info.box} outline={info.outline} pick={pick}
               onPick={(p) => g && setPick(cellAt(g, meta.grid.lat, meta.grid.lon, p))}
               label={`Globe zoomed to ${info.name}, showing ${n.short} trends that pass the strict test.`} />
           </div>
@@ -585,7 +639,7 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
             [`Sen's slope: ${signed(d.slope_decade)} ${n.units}/decade (95% range ${fmt(d.ci_decade[0])} to ${fmt(d.ci_decade[1])})`, "The median of the slopes between every pair of years (1,035 pairs). Unlike a regular best-fit line, one odd year can't drag it."],
             [`Mann-Kendall p: ${pfmt(d.p_naive)} simple, ${pfmt(d.p_hr)} corrected`, "How often pure noise would make an up-or-down pattern at least this consistent. The corrected value uses the Hamed-Rao method for years that resemble the year before."],
             [`Luck test (shuffled years) p: ${pfmt(d.p_perm)}`, "The share of 2,000 shuffled versions of the data that showed a trend at least this strong."],
-            [`False-alarm rate q: ${pfmt(d.q)}`, "Benjamini-Hochberg across all 184 tests: if we called every trend this strong \"real\", this is the share we'd expect to be false alarms. Under 0.05 = real signal."],
+            [`False-alarm rate q: ${pfmt(d.q)}`, `Benjamini-Hochberg across all ${d.tests ?? 184} tests: if we called every trend this strong \"real\", this is the share we'd expect to be false alarms. Under 0.05 = real signal.`],
             [`Normal wobble: ${fmt(d.noise_level)} ${n.units}, year-to-year memory ${fmt(d.autocorr)}`, "Wobble is the typical distance of a year from the trend line. Memory (lag-1 autocorrelation) is how much each year looks like the one before, from −1 to 1."],
             [`El Niño effect: ${signed(d.enso_coef)} ${n.units} per °C of Niño 3.4 (p ${pfmt(d.enso_p)})`, "How much this place's yearly average shifts for each 1 °C of El Niño warming in the central Pacific (the NOAA Niño 3.4 index), from a fit of trend plus that index."],
           ].map(([t, dd]) => (
@@ -593,10 +647,10 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
           ))}
         </dl>
       </details>
-      <ShareTools title={`${n.short} ${inPlace(info)}, ${meta.years[0]}–${meta.years.at(-1)}: ${vd.label}`} filename={`trend-detective-${info.id}-${v}`}
+      <ShareTools title={`${n.short} ${inPlace(info)}, ${meta.years[0]}–${meta.years.at(-1)}: ${vd.label}`} filename={`trend-detective-${info.id.replace(/[^a-z0-9-]+/gi, "-")}-${v}`}
         header={["year", `${v} (${n.units}, yearly mean)`, "trend line (Sen's slope)"]}
         rows={d.annual.map((x: number, i: number) => [meta.years[i], x, +(d.intercept + (d.slope_decade / 10) * i).toPrecision(5)])}
-        notes={[`${n.short} ${inPlace(info)} (${info.name}; box ${info.box.join(", ")} as lat min, lat max, lon min, lon max)`,
+        notes={[info.custom ? `${n.short} ${inPlace(info)} (${info.blurb} Place outline: OpenStreetMap contributors, via Nominatim.)` : `${n.short} ${inPlace(info)} (${info.name}; box ${info.box.join(", ")} as lat min, lat max, lon min, lon max)`,
           "Source: NASA GMAO MERRA-2 monthly reanalysis via NASA GES DISC; yearly means of the monthly values.",
           `Sen's slope ${d.slope_decade} ${n.units} per decade (95% range ${d.ci_decade[0]} to ${d.ci_decade[1]}); Mann-Kendall p ${d.p_naive}; Hamed-Rao p ${d.p_hr}; false-alarm rate q ${d.q}; verdict: ${vd.label}`]} />
       <p className="text-sm text-[var(--ink-dim)]">Want the whole planet? <Link href={`/globe?v=${v}`}>Open the globe for {n.noun}</Link>.</p>
