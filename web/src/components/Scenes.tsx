@@ -526,7 +526,7 @@ const POSES: Record<string, Pose[]> = {
 };
 // Phones stack the noise chapter vertically, so the mini globe moves to the empty bottom-right corner.
 const POSES_NARROW: Record<string, Pose[]> = { noise: [{ x: 32, y: 45, s: 0.26, o: 0.9 }] };
-const WIDE = { lat: 30, lng: -25, altitude: 2.1 };
+const WIDE = { lat: 30, lng: -25, altitude: 1.7 }; // the globe stays inside its full-bleed canvas (any closer and its edge would be cut)
 const mix = (a: Pose, b: Pose, t: number): Pose => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, s: a.s + (b.s - a.s) * t, o: a.o + (b.o - a.o) * t });
 
 /** Fixed behind the landing page: moves with the story and turns to the place each case is about (with its outline). */
@@ -583,16 +583,16 @@ export function StoryGlobe({ grid, meta }: { grid: Grid | null; meta: Meta }) {
 
   const region = place && place !== "compare" ? meta?.regions.find((r: { id: string }) => r.id === place) : null;
   const focus = useMemo(() => {
-    if (place === "compare") return { lat: 5, lng: 15, altitude: 2.6 };
+    if (place === "compare") return { lat: 5, lng: 15, altitude: 2.2 };
     if (!region) return WIDE;
     const [a, b, c, d] = region.box;
-    return d - c >= 359 ? { lat: 70, lng: 20, altitude: 1.9 } : { lat: (a + b) / 2, lng: (c + d) / 2, altitude: 1.5 };
+    return d - c >= 359 ? { lat: 70, lng: 20, altitude: 1.7 } : { lat: (a + b) / 2, lng: (c + d) / 2, altitude: 1.5 };
   }, [place, region]);
 
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <motion.div style={{ x, y: yy, scale, opacity }} className="absolute left-1/2 top-1/2 w-[min(1100px,135vw)] -translate-x-1/2 -translate-y-1/2">
-        <Globe grid={grid} mode="real" spin={!region && place !== "compare"} zoom={false} focus={focus} box={region?.box}
+      <motion.div style={{ x, y: yy, scale, opacity }} className="absolute inset-0">
+        <Globe grid={grid} mode="real" spin={!region && place !== "compare"} zoom={false} fill focus={focus} box={region?.box}
           label="A globe of NASA air-temperature trends that follows the story. Light shows warming, blue cooling, where the trend passed the strict test." />
       </motion.div>
     </div>
