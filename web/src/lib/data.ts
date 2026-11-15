@@ -70,7 +70,8 @@ const IN_SENTENCE: Record<string, string> = {
   global: "the whole Earth", greenland: "Greenland", "new-jersey": "New Jersey",
   delhi: "Delhi and the Ganges Plain", himalaya: "the Himalaya and Tibet",
 };
-export const placeName = (r: { id: string; name: string }) => IN_SENTENCE[r.id] ?? `the ${r.name}`;
+// Places picked from the map search ("osm:…", "pt:…") are proper names already: "France", not "the France".
+export const placeName = (r: { id: string; name: string }) => IN_SENTENCE[r.id] ?? (r.id.includes(":") ? r.name : `the ${r.name}`);
 export const inPlace = (r: { id: string; name: string }) => `${r.id === "global" ? "across" : "in"} ${placeName(r)}`;
 export const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
@@ -119,8 +120,8 @@ export function checks(v: string, d: VarStats) {
       q: "Does it survive checking many places at once?",
       pass: d.q < 0.05,
       text: d.q < 0.0001
-        ? "After accounting for all 184 tests in this app, and for years that resemble the year before, the false-alarm rate is far below 1 in 10,000."
-        : `After accounting for all 184 tests in this app, and for years that resemble the year before, the false-alarm rate is about ${fmt(d.q * 100, 2)}%.`,
+        ? `After accounting for all ${d.tests ?? 184} tests in this app, and for years that resemble the year before, the false-alarm rate is far below 1 in 10,000.`
+        : `After accounting for all ${d.tests ?? 184} tests in this app, and for years that resemble the year before, the false-alarm rate is about ${fmt(d.q * 100, 2)}%.`,
       note: "The more places you test, the more false alarms you get. This is the check the verdict uses. It passes if this is under 5%.",
     },
     {

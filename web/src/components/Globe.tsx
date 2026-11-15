@@ -143,9 +143,11 @@ const cellLatLng = (grid: Grid, k: number) => {
  * Optional props: `hud` = mono label lines drawn with a leader line from the picked square (off by default);
  * `dissolveFromNoise` = on a Noise → Real change, the false-alarm squares dissolve into drifting particles (off by default).
  */
-export function Globe({ grid, mode, enso = false, spin = false, zoom = true, label, focus, box, onPick, pick, hud, dissolveFromNoise = false }: {
+export function Globe({ grid, mode, enso = false, spin = false, zoom = true, label, focus, box, outline, onPick, pick, hud, dissolveFromNoise = false }: {
   grid: Grid | null; mode: Mode; enso?: boolean; spin?: boolean; zoom?: boolean; label: string;
   focus?: { lat: number; lng: number; altitude: number }; box?: number[];
+  /** A place's real border as rings of [lon, lat] (GeoJSON order); drawn instead of `box`. */
+  outline?: [number, number][][];
   onPick?: (p: { lat: number; lng: number }) => void; pick?: Pick | null;
   hud?: string[]; dissolveFromNoise?: boolean;
 }) {
@@ -262,15 +264,22 @@ export function Globe({ grid, mode, enso = false, spin = false, zoom = true, lab
     } catch { /* getScreenCoords unavailable: skip the effect */ }
   }, [mode, dissolveFromNoise, grid, enso, size]);
 
-  // Region outline: the box's four edges, densified so they follow the curve of the globe.
+  // Region outline: a real border if we have one (the 40 biggest rings, thinned to 300 points each),
+  // otherwise the box's four edges, densified so they follow the curve of the globe.
   const paths = useMemo(() => {
+    if (outline?.length) {
+      return [...outline].sort((a, b) => b.length - a.length).slice(0, 40).map((ring) => {
+        const step = Math.max(1, Math.ceil(ring.length / 300));
+        return { pts: ring.filter((_, i) => i % step === 0 || i === ring.length - 1).map(([lon, lat]) => [lat, lon]) };
+      });
+    }
     if (!box) return [];
     const [a, b, c, d] = box, n = 40;
     const edge = (f: (t: number) => number[]) => Array.from({ length: n + 1 }, (_, i) => f(i / n));
     // A box that wraps all the way round (the Arctic) is a ring: draw its circles of latitude only.
     if (d - c >= 359) return [a, b].filter((lat) => Math.abs(lat) < 89).map((lat) => ({ pts: edge((t) => [lat, -180 + 360 * t]) }));
     return [{ pts: [...edge((t) => [a, c + (d - c) * t]), ...edge((t) => [a + (b - a) * t, d]), ...edge((t) => [b, d - (d - c) * t]), ...edge((t) => [b - (b - a) * t, c])] }];
-  }, [box]);
+  }, [box, outline]);
   const rings = useMemo(() => (pick ? [{ lat: pick.lat, lng: pick.lon }] : []), [pick]);
 
   const ready = () => {

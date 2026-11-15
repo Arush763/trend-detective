@@ -10,7 +10,7 @@ then shows which trends survive the checks that luck rarely passes.
 
 ## What it does
 
-1. **Open a case.** Pick a kind of place (desert, rainforest, city, polar...) and a region. The app suggests the variables that matter for that kind of place.
+1. **Open a case anywhere on Earth.** Search for any country, state, island, city or coordinates (place outlines from OpenStreetMap). The app averages the NASA squares inside the outline and runs every check on that place. Or pick a kind of place (desert, rainforest, city, polar...) and one of 21 built-in regions, with suggested variables for each kind.
 2. **What to look at.** The region's variables ranked by signal-to-noise, suggested ones first, each with a plain-English definition.
 3. **The data, four checks, a verdict.** Yearly values with the seasonal cycle removed, the Sen's slope trend with a 95% confidence interval, Mann-Kendall p-values (naive, autocorrelation-corrected, shuffle test), a false-discovery-rate q-value, and a verdict.
    - **Remove El Niño:** regresses out the detrended Niño 3.4 index, so a few big El Niño years can't fake a trend.
@@ -44,8 +44,10 @@ $env:EARTHDATA_TOKEN = "<your Earthdata Login token>"   # PowerShell; bash: expo
 python pipeline/download_merra2.py --test   # check one month
 python pipeline/download_merra2.py          # ~2,200 files, ~2.3 GB, resumable
 python pipeline/build.py                    # writes data/processed (~10 min)
+python pipeline/build_places.py             # yearly values for every 1° x 1.25° square, for "any place" (~12 min)
 python pipeline/aeronet.py                  # Beijing ground-station check (no login needed)
 python pipeline/test_stats.py               # checks our statistics against pymannkendall
+cd web && node scripts/check-stats.ts       # checks the browser port of the statistics against stats.py
 ```
 
 ## Methods and references
