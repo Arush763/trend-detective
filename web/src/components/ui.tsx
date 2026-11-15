@@ -1,7 +1,7 @@
 "use client";
-// Shared design-system primitives. See the trend-detective-design skill for the rules behind them.
+// Shared design-system primitives. See .claude/skills/trend-detective-design-system for the rules behind them.
 import Link from "next/link";
-import { useEffect, useState, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type ElementType, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type AnchorHTMLAttributes, type ButtonHTMLAttributes, type ElementType, type ReactNode } from "react";
 import { motion } from "motion/react";
 
 /** Hydration-safe reduced-motion flag: false on the server AND on the first client render, then the real preference after mount. (Motion's own useReducedMotion can differ between server and first client paint, which changes markup and breaks hydration.) */
@@ -17,24 +17,26 @@ export function useReducedMotion() {
   return reduce;
 }
 
-const EASE = [0.16, 1, 0.3, 1] as const;
+const EASE = [0.16, 1, 0.3, 1] as const; // ease-expo
+const EASE_UI = [0.4, 0, 0.1, 1] as const;
+const EASE_BACK = [0, 1.3, 1.1, 1] as const;
 
 const TONE = {
-  real: "border-signal/45 bg-signal/10 text-signal",
-  pass: "border-signal/45 bg-signal/10 text-signal",
-  maybe: "border-white/20 bg-white/[0.05] text-ink-dim",
-  na: "border-white/20 bg-white/[0.05] text-ink-dim",
-  none: "border-noise/60 bg-noise/10 text-[#aab1bd]",
+  real: "border-accent bg-accent text-accent-ink",
+  pass: "border-accent bg-accent text-accent-ink",
+  maybe: "border-hairline bg-ground-raised text-ink-muted",
+  na: "border-hairline bg-ground-raised text-ink-muted",
+  none: "border-no-trend bg-ground-raised text-ink-muted",
   fail: "border-false-alarm/50 bg-false-alarm/10 text-false-alarm",
   alarm: "border-false-alarm/50 bg-false-alarm/10 text-false-alarm",
 };
 
-/** Mono uppercase verdict chip: real/pass = signal, maybe/na = dim, none = noise grey, fail/alarm = false-alarm magenta. */
+/** Mono uppercase verdict chip: real/pass = accent fill, maybe/na = muted, none = no-trend grey, fail/alarm = false-alarm magenta. */
 export function Badge({ tone, children }: { tone: keyof typeof TONE; children: ReactNode }) {
-  return <span className={`hud inline-flex items-center whitespace-nowrap rounded-full border px-3 py-1 backdrop-blur-sm ${TONE[tone]}`}>{children}</span>;
+  return <span className={`hud inline-flex items-center whitespace-nowrap rounded-full border px-3 py-1 ${TONE[tone]}`}>{children}</span>;
 }
 
-/** Glass surface (`.glass`) with default padding. Pass `className` to override padding or radius. */
+/** Solid raised panel (`.glass`, radius 10) with default padding. Pass `className` to override padding or radius. */
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`glass p-6 ${className}`}>{children}</div>;
 }
@@ -58,21 +60,26 @@ export function Hud({ children, className = "", as: Tag = "span" }: { children: 
   return <Tag className={`hud ${className}`}>{children}</Tag>;
 }
 
-/** `////// LABEL` section label: faint slashes, dim text. */
+/** `• LABEL` section label: an accent dot, muted text. */
 export function SectionLabel({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <p className={`hud ${className}`}>
-      <span aria-hidden="true" className="mr-2 text-ink-faint">{"//////"}</span>{children}
+      <span aria-hidden="true" className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-accent align-[0.1em]" />{children}
     </p>
   );
 }
 
-/** Rolling-text hover: two stacked copies, the label slides up and the twin rolls in (260ms ease-out). Triggered by hovering/focusing the nearest parent link or button. Static under reduced motion. */
+/** RollLink label: nudges 6px right when the nearest parent link or button is hovered or focused (400ms ease-ui). No duplicate text; the current page (aria-current) doesn't nudge. */
 export function RollText({ children }: { children: string }) {
+  return <span className="nudge">{children}</span>;
+}
+
+/** Words that really change (Menu → Close): both stacked in one grid cell, the shown one rolls in. The hidden one is aria-hidden. */
+export function SwapText({ a, b, showB }: { a: string; b: string; showB: boolean }) {
   return (
     <span className="roll">
-      <span>{children}</span>
-      <span aria-hidden="true">{children}</span>
+      <span aria-hidden={showB || undefined} data-gone={showB || undefined}>{a}</span>
+      <span aria-hidden={!showB || undefined} data-off={!showB || undefined}>{b}</span>
     </span>
   );
 }
@@ -87,12 +94,13 @@ type ButtonProps = {
   className?: string;
 } & Omit<AnchorHTMLAttributes<HTMLAnchorElement> & ButtonHTMLAttributes<HTMLButtonElement>, "onClick" | "children" | "className" | "href">;
 
-/** Pill button, mono uppercase, arrow slot and rolling-text hover. Internal href = next/link, http(s)/mailto href = <a>, otherwise <button>. */
+/** Pill button `[dot][label][arrow]`. primary = PillButton (dot flood, one per view), glass = ShiftButton (slate). Internal href = next/link, http(s)/mailto href = <a>, otherwise <button>. */
 export function Button({ href, onClick, variant = "primary", children, arrow = "→", className = "", ...rest }: ButtonProps) {
   const cls = `btn ${variant === "primary" ? "btn-primary" : "btn-ghost"} ${className}`;
   const inner = (
     <>
-      <RollText>{children}</RollText>
+      <span aria-hidden="true" className="btn-dot" />
+      <span className="btn-label">{children}</span>
       {arrow !== false && <span aria-hidden="true" className="btn-arrow">{arrow}</span>}
     </>
   );
@@ -107,7 +115,7 @@ export function Button({ href, onClick, variant = "primary", children, arrow = "
 export function Brackets({ layoutId, className = "" }: { layoutId: string; className?: string }) {
   const c = "absolute h-2 w-2 border-signal";
   return (
-    <motion.span layoutId={layoutId} aria-hidden="true" transition={{ duration: 0.35, ease: EASE }}
+    <motion.span layoutId={layoutId} aria-hidden="true" transition={{ duration: 0.4, ease: EASE_UI }}
       className={`pointer-events-none absolute -inset-1 ${className}`}>
       <span className={`${c} left-0 top-0 border-l-[1.5px] border-t-[1.5px]`} />
       <span className={`${c} right-0 top-0 border-r-[1.5px] border-t-[1.5px]`} />
@@ -117,22 +125,23 @@ export function Brackets({ layoutId, className = "" }: { layoutId: string; class
   );
 }
 
+// A failed check is shown muted like "not proven", never red.
 const STAMP = {
-  passed: { label: "Passed", dark: "border-signal text-signal", paper: "border-signal-ink text-signal-ink" },
-  "not-proven": { label: "Not proven", dark: "border-white/35 text-ink-dim", paper: "border-ink-paper-dim text-ink-paper-dim" },
-  failed: { label: "Failed", dark: "border-false-alarm text-false-alarm", paper: "border-[#a21caf] text-[#a21caf]" },
+  passed: { label: "Passed", cls: "border-accent bg-accent text-accent-ink" },
+  "not-proven": { label: "Not proven", cls: "border-ink-muted text-ink-muted" },
+  failed: { label: "Not proven", cls: "border-ink-muted text-ink-muted" },
 } as const;
 
-/** Mono stamp that lands with scale 1.15 → 1 and a 6px → 0 blur (instant under reduced motion). Default text is PASSED / NOT PROVEN / FAILED; `paper` switches colors for light chapters. */
-export function VerdictStamp({ verdict, children, paper = false, className = "" }: { verdict: "passed" | "not-proven" | "failed"; children?: ReactNode; paper?: boolean; className?: string }) {
+/** Pixel stamp that lands with scale 1.4 → 1 on ease-back (instant under reduced motion). Default text is PASSED / NOT PROVEN. Theme-aware through tokens, so it works on Paper chapters too. */
+export function VerdictStamp({ verdict, children, className = "" }: { verdict: "passed" | "not-proven" | "failed"; children?: ReactNode; className?: string }) {
   const reduce = useReducedMotion();
   const s = STAMP[verdict];
   return (
     <motion.span
-      initial={reduce ? false : { opacity: 0, scale: 1.15, filter: "blur(6px)" }}
-      animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-      transition={{ duration: 0.7, ease: EASE }}
-      className={`hud inline-flex origin-center items-center rounded-md border-[1.5px] px-3 py-1.5 tracking-[0.14em] ${paper ? s.paper : s.dark} ${className}`}>
+      initial={reduce ? false : { opacity: 0, scale: 1.4 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.4, ease: EASE_BACK }}
+      className={`pixel inline-flex origin-center items-center rounded-md border-[1.5px] px-3 py-1.5 ${s.cls} ${className}`}>
       {children ?? s.label}
     </motion.span>
   );
@@ -158,7 +167,7 @@ export function HudCallout({ from, to, lines, align = "left", show = true }: { f
   const reduce = useReducedMotion();
   const right = align === "right";
   const tx = to[0] + (right ? -8 : 8);
-  const mono = "var(--font-jetbrains), ui-monospace, monospace";
+  const mono = "var(--font-mono)";
   return (
     <g>
       <motion.path d={`M${from[0]} ${from[1]} L${to[0]} ${to[1]}`} fill="none" strokeWidth={1} vectorEffect="non-scaling-stroke" style={{ stroke: "var(--ink-faint)" }}
@@ -180,4 +189,53 @@ export function HudCallout({ from, to, lines, align = "left", show = true }: { f
 /** Same as HudCallout with the line given as x1,y1 → x2,y2. Also renders a <g>, so use it inside an <svg>. */
 export function LeaderLabel({ lines, x1, y1, x2, y2, align, show }: { lines: string[]; x1: number; y1: number; x2: number; y2: number; align?: "left" | "right"; show?: boolean }) {
   return <HudCallout from={[x1, y1]} to={[x2, y2]} lines={lines} align={align} show={show} />;
+}
+
+/** CaseCard title: on hover of the nearest `.group`, letters slide 34px right in a wave (later letters start first, 12ms apart, damped k=10) and an arrow chases ~100ms behind. Plain text with JS off; static under reduced motion or without a hovering pointer. */
+export function WaveTitle({ text, className = "" }: { text: string; className?: string }) {
+  const root = useRef<HTMLHeadingElement>(null);
+  const reduce = useReducedMotion();
+  useEffect(() => {
+    const h = root.current, card = h?.closest<HTMLElement>(".group");
+    if (!h || !card || reduce || !matchMedia("(hover: hover)").matches) return;
+    const letters = [...h.querySelectorAll<HTMLElement>("[data-l]")], arrow = h.querySelector<HTMLElement>("[data-arrow]")!;
+    const n = letters.length, x = new Float32Array(n + 1);
+    let on = false, since = 0, raf = 0, last = 0;
+    const tick = (t: number) => {
+      const dt = Math.min(0.064, (t - (last || t)) / 1000); last = t;
+      const age = t - since;
+      let moving = age < (n * 12 + 100); // keep running until every delay has passed
+      for (let i = 0; i <= n; i++) {
+        const delay = i < n ? (n - 1 - i) * 12 : 100; // index n is the arrow
+        const target = on && age >= delay ? 34 : on ? x[i] : 0;
+        x[i] += (target - x[i]) * (1 - Math.exp(-10 * dt));
+        if (Math.abs(target - x[i]) > 0.1) moving = true;
+      }
+      letters.forEach((el, i) => (el.style.transform = `translateX(${x[i].toFixed(2)}px)`));
+      arrow.style.transform = `translateX(${(x[n] - 34).toFixed(2)}px)`;
+      arrow.style.opacity = String(x[n] / 34);
+      raf = moving ? requestAnimationFrame(tick) : 0;
+    };
+    const go = (v: boolean) => () => { on = v; since = performance.now(); last = 0; if (!raf) raf = requestAnimationFrame(tick); };
+    const enter = go(true), leave = go(false);
+    card.addEventListener("pointerenter", enter); card.addEventListener("pointerleave", leave);
+    card.addEventListener("focusin", enter); card.addEventListener("focusout", leave);
+    return () => { cancelAnimationFrame(raf); card.removeEventListener("pointerenter", enter); card.removeEventListener("pointerleave", leave); card.removeEventListener("focusin", enter); card.removeEventListener("focusout", leave); };
+  }, [reduce]);
+  const words = text.split(" ");
+  return (
+    <h3 ref={root} aria-label={text} className={`relative ${className}`}>
+      <span data-arrow aria-hidden="true" className="absolute left-0 top-0 opacity-0">→</span>
+      <span aria-hidden="true">
+        {words.map((w, wi) => (
+          <Fragment key={wi}>
+            {wi > 0 && " "}
+            <span className="inline-block whitespace-nowrap">
+              {[...w].map((c, ci) => <span key={ci} data-l className="inline-block will-change-transform">{c}</span>)}
+            </span>
+          </Fragment>
+        ))}
+      </span>
+    </h3>
+  );
 }

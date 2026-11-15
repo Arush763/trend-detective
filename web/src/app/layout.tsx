@@ -1,15 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { JetBrains_Mono, Outfit } from "next/font/google";
+import { IBM_Plex_Mono, Inter_Tight, Silkscreen } from "next/font/google";
 import { Nav } from "@/components/Nav";
-import { Grain, LightLeaks, WarmingStripes } from "@/components/Fancy";
+import { LightLeaks, WarmingStripes } from "@/components/Fancy";
 import { RollText, SectionLabel } from "@/components/ui";
 import { MotionPrefs } from "@/components/MotionPrefs";
 import { PWA } from "@/components/PWA";
 import "./globals.css";
 
-const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"] });
-const outfit = Outfit({ variable: "--font-outfit", subsets: ["latin"], weight: ["400"] });
+const interTight = Inter_Tight({ variable: "--font-inter-tight", subsets: ["latin"], weight: ["400", "500"] });
+const plexMono = IBM_Plex_Mono({ variable: "--font-plex-mono", subsets: ["latin"], weight: ["400", "500"] });
+const silkscreen = Silkscreen({ variable: "--font-silkscreen", subsets: ["latin"], weight: ["400"] });
 
 const DESCRIPTION = "Is Earth really changing, or is it just luck? 46 years of NASA MERRA-2 data, tested for real trends.";
 
@@ -24,24 +25,23 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false },
 };
 
-export const viewport: Viewport = { themeColor: "#05070b", colorScheme: "dark" };
+export const viewport: Viewport = { themeColor: "#07090d", colorScheme: "dark" };
 
 const LINKS = [["/#cases", "Demo cases"], ["/explore", "Explore a place"], ["/globe", "Globe"], ["/how", "How it works"], ["https://github.com/Arush763/trend-detective", "Code on GitHub"]];
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${jetbrains.variable} ${outfit.variable} antialiased`}>
+    <html lang="en" data-theme="night" className={`${interTight.variable} ${plexMono.variable} ${silkscreen.variable} antialiased`}>
       <body>
         <MotionPrefs>
           <a href="#main" className="btn btn-primary sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60]">Skip to content</a>
-          <Grain />
           <PWA />
           <Nav />
           <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[1200px] px-4 pb-20 pt-24 outline-none sm:px-8">{children}</main>
-          <footer className="relative overflow-hidden border-t border-white/[0.08] text-ink">
+          <footer className="relative overflow-hidden border-t border-hairline text-ink">
             <LightLeaks />
             <div className="relative mx-auto flex max-w-[1200px] flex-col gap-10 px-4 pb-10 pt-16 sm:px-8">
-              <p className="font-display text-[clamp(48px,9vw,120px)] leading-[0.95] tracking-[-0.03em]">trend detective</p>
+              <p className="font-display text-[clamp(48px,9vw,120px)] leading-[0.95] tracking-[-0.02em]">trend detective</p>
               <nav aria-label="Footer" className="flex flex-wrap gap-x-6">
                 {LINKS.map(([href, label]) => href.startsWith("http")
                   ? <a key={href} href={href} target="_blank" rel="noopener noreferrer" className="hud inline-flex min-h-11 items-center text-ink-dim no-underline hover:text-ink"><RollText>{label}</RollText></a>
@@ -64,7 +64,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </div>
             <div className="relative h-[200px]">
               <WarmingStripes className="absolute inset-0 blur-[14px] [mask-image:linear-gradient(to_bottom,transparent,black_55%)] [transform:scale(1.08)]" />
-              <p className="hud glass-strong absolute inset-x-4 bottom-3 mx-auto w-fit max-w-full !rounded-full px-3 py-1.5 text-center text-ink">
+              <p className="hud absolute inset-x-4 bottom-3 mx-auto w-fit max-w-full rounded-full border border-hairline bg-ground-raised px-3 py-1.5 text-center text-ink">
                 Warming stripes · NASA global air temperature, 1980–2025 · blue cooler, red warmer
               </p>
             </div>

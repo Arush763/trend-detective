@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { NICE, VERDICT, WF, get, headline, inPlace, signed, type Meta, type Region } from "@/lib/data";
 import { TrendChart } from "@/components/TrendChart";
-import { Badge, Card, Hud } from "@/components/ui";
+import { Badge, Card, Hud, SectionLabel } from "@/components/ui";
 import { trendToneCss } from "@/components/Globe";
 import { ShareTools } from "@/components/ShareTools";
 
@@ -57,8 +57,8 @@ export default function Compare() {
   return (
     <div className="flex min-w-0 flex-col gap-10">
       <header className="flex max-w-[960px] flex-col gap-2.5">
-        <Hud className="text-[var(--ink-dim)]"><span className="text-[var(--ink-faint)]">{"//////"}</span> {isDefault ? "Case 04 · Compare two places" : "Compare two places"}</Hud>
-        <Hud className="text-[var(--signal)]">{`CASE_04 · ${A.name} ↔ ${B.name}`}</Hud>
+        <SectionLabel>{isDefault ? "Case 04 · Compare two places" : "Compare two places"}</SectionLabel>
+        <Hud className="text-ink">{`CASE_04 · ${A.name} ↔ ${B.name}`}</Hud>
         <h1 className="text-balance font-display text-[clamp(40px,6vw,84px)] leading-[0.95] tracking-[-0.03em]">{title}</h1>
         <p className="max-w-[60ch] text-pretty text-lg leading-relaxed text-[var(--ink-dim)]">{sub}</p>
       </header>

@@ -121,14 +121,14 @@ export default function GlobePage() {
       </div>
 
       <AnimatePresence mode="wait">
-        <motion.p key={v} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        <motion.div key={v} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           className="glass flex flex-col gap-2 px-6 py-5 text-[15px] leading-relaxed text-ink-dim">
           <SectionLabel>WHAT THIS SHOWS · {NICE[v].noun}</SectionLabel>
           <span className="max-w-[75ch]">
           {n0(s.naive_sig)} places pass the simple test, and {n0(s.real_sig)} survive the strict one
           ({Math.round((100 * s.real_sig) / Math.max(s.naive_sig, 1))}% of them). Meanwhile, shuffled data with no trend at all still fooled the simple test in {n0(s.noise_sig)} places.
           {meta.variables[v].caveat ? ` Caution: ${meta.variables[v].caveat}` : ""}</span>
-        </motion.p>
+        </motion.div>
       </AnimatePresence>
     </div>
   );

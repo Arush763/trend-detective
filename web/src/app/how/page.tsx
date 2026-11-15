@@ -103,7 +103,7 @@ export default function How() {
           {STEPS.map(([t, d], i) => (
             <li key={t}>
               <Card className="flex h-full flex-col gap-3">
-                <Hud className="num text-[var(--signal)]">{String(i + 1).padStart(2, "0")}</Hud>
+                <Hud className="num text-ink">{String(i + 1).padStart(2, "0")}</Hud>
                 <h3 className="font-display text-2xl tracking-[-0.01em]">{t}</h3>
                 <p className="text-[15px] leading-relaxed text-[var(--ink-dim)]">{d}</p>
               </Card>
@@ -149,16 +149,16 @@ export default function How() {
         </div>
       </Chapter>
 
-      <section id="sources" className="paper grid gap-10 rounded-[28px] p-6 sm:p-10 md:p-14">
+      <section id="sources" className="paper grid gap-10 rounded-[var(--radius-sm)] p-6 sm:p-10 md:p-14">
         <div className="flex flex-col gap-5">
-          <p className="hud text-[var(--ink-paper-dim)]"><span className="opacity-60">{"//////"}</span> SOURCES</p>
+          <SectionLabel>SOURCES</SectionLabel>
           <h2 className={H2}>Sources</h2>
         </div>
         <ul className="m-0 flex list-none flex-col gap-0 p-0">
           {SOURCES.map(([text, href], i) => (
             <li key={text} className="flex gap-4 border-t border-[var(--ink-paper-dim)]/25 py-3 font-mono text-[12.5px] leading-relaxed text-[var(--ink-paper-dim)]">
               <span className="num shrink-0 opacity-70">{String(i + 1).padStart(2, "0")}</span>
-              {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="text-[var(--signal-ink)] underline underline-offset-4">{text}</a> : <span>{text}</span>}
+              {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="text-ink underline underline-offset-4">{text}</a> : <span>{text}</span>}
             </li>
           ))}
         </ul>
