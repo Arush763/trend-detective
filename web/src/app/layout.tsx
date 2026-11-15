@@ -4,6 +4,7 @@ import { Inter, Outfit } from "next/font/google";
 import { Nav } from "@/components/Nav";
 import { WarmingStripes } from "@/components/Fancy";
 import { MotionPrefs } from "@/components/MotionPrefs";
+import { PWA } from "@/components/PWA";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
@@ -17,6 +18,9 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   openGraph: { type: "website", siteName: "Trend Detective", title: "Trend Detective: Signal or Noise?", description: DESCRIPTION, url: "/" },
   twitter: { card: "summary_large_image", title: "Trend Detective: Signal or Noise?", description: DESCRIPTION },
+  applicationName: "Trend Detective",
+  appleWebApp: { capable: true, title: "Trend Detective", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = { themeColor: "#070b1a", colorScheme: "dark" };
@@ -29,6 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         <MotionPrefs>
           <a href="#main" className="btn btn-primary sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-[60]">Skip to content</a>
+          <PWA />
           <Nav />
           <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[1200px] px-4 pb-20 pt-8 outline-none sm:px-8">{children}</main>
           <footer className="relative overflow-hidden border-t border-white/[0.06] text-[var(--text)]">
