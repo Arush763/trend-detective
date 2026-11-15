@@ -13,17 +13,17 @@ export function Badge({ tone, children }: { tone: keyof typeof TONE; children: R
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-[20px] border border-[var(--line)] bg-white/[0.04] p-6 ${className}`}>{children}</div>;
+  return <div className={`rounded-[20px] border border-[var(--line)] bg-white/[0.04] p-6 backdrop-blur-md ${className}`}>{children}</div>;
 }
 
 /** Tiny line of a series; `trend` = [start, end] values of the trend line, drawn on top. */
-export function Sparkline({ y, trend, color = "#f97316", label }: { y: number[]; trend?: [number, number]; color?: string; label: string }) {
+export function Sparkline({ y, trend, color = "#f97316", label, className = "h-16 w-full" }: { y: number[]; trend?: [number, number]; color?: string; label: string; className?: string }) {
   const W = 300, H = 64;
   const lo = Math.min(...y, ...(trend ?? [])), hi = Math.max(...y, ...(trend ?? [])), span = hi - lo || 1;
   const X = (i: number) => (i / (y.length - 1)) * W;
   const Y = (v: number) => 4 + (hi - v) / span * (H - 8);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-16 w-full" role="img" aria-label={label}>
+    <svg viewBox={`0 0 ${W} ${H}`} className={className} preserveAspectRatio="none" role="img" aria-label={label}>
       <polyline fill="none" stroke="#c7d2fe" strokeWidth={1.5} strokeLinejoin="round" points={y.map((v, i) => `${X(i)},${Y(v)}`).join(" ")} />
       {trend && <line x1={0} y1={Y(trend[0])} x2={W} y2={Y(trend[1])} stroke={color} strokeWidth={2.5} />}
     </svg>

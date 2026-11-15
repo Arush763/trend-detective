@@ -43,7 +43,7 @@ function stripe(t: number) {
 /** One stripe per year of NASA MERRA-2 global air temperature, coldest blue to warmest red. */
 export function WarmingStripes({ className = "" }: { className?: string }) {
   const [y, setY] = useState<number[] | null>(null);
-  useEffect(() => { get("regions/global.json").then((r) => setY(r.variables.T2M.annual)); }, []);
+  useEffect(() => { get("regions/global.json").then((r) => setY(r.variables.T2M.annual)).catch(() => {}); }, []);
   if (!y) return <div className={className} />;
   const lo = Math.min(...y), hi = Math.max(...y);
   return (

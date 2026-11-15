@@ -10,9 +10,9 @@ export default function Landing() {
   const [cases, setCases] = useState<Record<string, Region>>({});
 
   useEffect(() => {
-    get("meta.json").then(setMeta);
-    get("grid/T2M.json").then(setGrid);
-    DEMOS.forEach((d) => get(`regions/${d.place}.json`).then((r) => setCases((c) => ({ ...c, [d.id]: r }))));
+    get("meta.json").then(setMeta).catch(() => {});
+    get("grid/T2M.json").then(setGrid).catch(() => {});
+    DEMOS.forEach((d) => get(`regions/${d.place}.json`).then((r) => setCases((c) => ({ ...c, [d.id]: r }))).catch(() => {}));
   }, []);
 
   return (

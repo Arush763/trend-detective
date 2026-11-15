@@ -48,7 +48,7 @@ VARIABLES = {
     },
     "GWETROOT": {
         "name": "Root-zone soil moisture",
-        "convert": lambda x: x * 100, "units": "% saturated",
+        "convert": lambda x: x * 100, "units": "% saturated", "pct": False,  # already a percentage: report points
         "definition": "How wet the soil is down where plant roots reach (0% = bone dry, 100% = fully soaked). Land only.",
         "collection": "M2TMNXLND",
     },

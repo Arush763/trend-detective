@@ -21,8 +21,8 @@ A website where anyone, with no statistics background, can investigate whether a
 | Verdict | Meaning |
 |---|---|
 | **Real signal** | Survives the strict test: false-discovery rate q < 0.05 |
-| **Not proven yet** | Might be luck (corrected p < 0.2). We estimate how many more years of data would settle it |
-| **No clear trend** | Small next to the normal year-to-year ups and downs |
+| **Not proven yet** | Might be luck (corrected p < 0.2). We estimate how many more years of data would give a 90% chance of detecting it |
+| **No clear trend** | Corrected p ≥ 0.2: we can't tell it apart from noise |
 
 ## Data
 
@@ -39,7 +39,7 @@ A website where anyone, with no statistics background, can investigate whether a
 4. **Multiple testing:** Benjamini-Hochberg false discovery rate, across all 184 region × variable tests and across all 12,960 map squares (see Wilks 2016).
 5. **Luck test:** a permutation test with 2,000 shuffles for each region, and a shuffled-data map.
 6. **Remove El Niño:** regress out the detrended Niño 3.4 index.
-7. **Years until we'd know:** Weatherhead et al. (1998) years-to-detect, for trends that aren't significant yet.
+7. **Years until we'd know:** Weatherhead et al. (1998) years-to-detect (90% chance of detection at the 5% level), for trends that aren't significant yet. The formula is written for monthly noise, so for our yearly means the noise term carries a factor of √12.
 8. **Holds up over time:** find the trend in 1980–2002, then check it in 2003–2025 (confirmed, continuing, faded, reversed or emerging).
 
 `pipeline/test_stats.py` checks our vectorized statistics against `pymannkendall` (the results match to 1e-9). It also confirms a false-positive rate of about 5% on pure noise, that essentially nothing survives FDR on pure noise, and that the walk-forward labels are correct.
@@ -51,17 +51,17 @@ A website where anyone, with no statistics background, can investigate whether a
 | Tested | 12,960 |
 | Pass the simple test (p < 0.05) | 9,588 |
 | False alarms on shuffled data with no trend | 640 (about 5%, as theory predicts) |
-| Survive the strict test | 8,835 |
+| Survive the strict test | 8,834 |
 
 Across the variables, the strict test removes the most for rain and snow (4,646 → 2,665) and for haze (5,704 → 2,524). Air temperature trends are overwhelmingly real.
 
-**Sanity check (Arctic amplification).** MERRA-2 gives the Arctic warming 0.44 °C per decade against 0.16 °C per decade globally, a ratio of 2.7. Over 1980–2021 the ratio is 3.2. Rantanen et al. (2022) report about 3.8 from observations. Reanalyses disagree on Arctic trends (roughly 0.3–0.7 °C per decade), so this falls in the expected range.
+**Sanity check (Arctic amplification).** MERRA-2 gives the Arctic warming 0.44 °C per decade against 0.16 °C per decade globally, a ratio of 2.7. Over 1980–2021 the ratio is 3.15. Rantanen et al. (2022) report about 3.8 from observations. Reanalyses disagree on Arctic trends (roughly 0.3–0.7 °C per decade), so this falls in the expected range.
 
 ### Demo cases
 
 - **Arctic air temperature:** Real signal. +0.44 °C per decade (95% CI 0.34–0.55), about 2 °C since 1980. It passes all four checks and holds after removing El Niño.
-- **Beijing haze:** Not proven yet. A simple test says haze rose (p = 0.002), but haze climbed until the early 2010s and then fell. After correcting for autocorrelation and multiple testing, q = 0.11. Since 2003 there has been a significant decline.
-- **Murray-Darling Basin runoff:** Not proven yet. Down 28% since 1980 (q = 0.25). About 5 more years of data would likely settle it.
+- **Beijing haze:** Not proven yet. A simple test says haze rose (p = 0.002), but haze climbed until the mid-2000s, stayed high until about 2015, and then fell. After correcting for autocorrelation and multiple testing, q = 0.11. Since 2003 there has been a significant decline.
+- **Murray-Darling Basin surface runoff:** Not proven yet. Down about 27% since 1980 (q = 0.25). The year-to-year swings are so large that, at this size, it would take about 70 more years of data for a 90% chance of detecting it.
 
 ## Limitations
 
@@ -73,7 +73,7 @@ Across the variables, the strict test removes the most for rain and snow (4,646 
 ## Tech
 
 - **Pipeline:** Python (numpy, scipy, xarray, netCDF4, pymannkendall for tests), writing static JSON.
-- **Web:** Next.js 16 + Tailwind CSS 4, Motion (scroll-scrubbed animation), Lenis (smooth scrolling), react-globe.gl / three.js (3D globe). Charts are hand-built in SVG and canvas. Static export on Vercel.
+- **Web:** Next.js 16 + Tailwind CSS 4, Motion (scroll-scrubbed animation), Lenis (smooth scrolling), react-globe.gl / three.js (3D globe). Charts are hand-built in SVG and canvas. Prerendered static pages on Vercel.
 
 ## Run it
 

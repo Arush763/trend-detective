@@ -1,7 +1,8 @@
 data/raw/
 *.part
 __pycache__/
-.env
+.env*
+CLAUDE.md
 node_modules/
 .next/
 data/synthetic/

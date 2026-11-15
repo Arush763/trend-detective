@@ -138,8 +138,10 @@ def years_to_detect(Y, slope):
     sigma = resid.std(axis=1, ddof=1)
     phi = _acf_rows(resid, 1)[:, 1]
     phi = np.clip(phi, -0.5, 0.9)
+    # Weatherhead's formula is written for MONTHLY noise, where SE(slope per year) ≈ σ / n^1.5.
+    # Our series are yearly means, where SE(slope per year) = √12 · σ / n^1.5, so σ gets a factor √12.
     with np.errstate(divide="ignore", invalid="ignore"):
-        nstar = ((3.3 * sigma / np.abs(slope)) * np.sqrt((1 + phi) / (1 - phi))) ** (2.0 / 3.0)
+        nstar = ((3.3 * np.sqrt(12) * sigma / np.abs(slope)) * np.sqrt((1 + phi) / (1 - phi))) ** (2.0 / 3.0)
     return nstar, sigma, phi
 
 
