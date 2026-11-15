@@ -105,6 +105,9 @@ function paint(grid: Grid, mode: Mode, enso: boolean, coastP: Path2D | null) {
   return url;
 }
 
+/** The same picture as a flat map (equirectangular image URL): the readable fallback without WebGL or with reduced motion. */
+export const flatMap = paint;
+
 /** Nearest grid square to a clicked point. */
 export function cellAt(grid: Grid, lat: number[], lon: number[], p: { lat: number; lng: number }) {
   const near = (arr: number[], v: number, wrap = 0) => arr.reduce((b, x, i) => {
