@@ -51,7 +51,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <div className="flex flex-col gap-3">
                   <SectionLabel>Credits</SectionLabel>
                   <p className="text-[14px] leading-relaxed text-ink-dim">
-                    Data: NASA GMAO MERRA-2 monthly reanalysis (1980–2025) via <a href="https://disc.gsfc.nasa.gov/datasets?project=MERRA-2" target="_blank" rel="noopener noreferrer">NASA GES DISC</a>. El Niño index: NOAA CPC Niño 3.4. Beijing ground check: NASA AERONET. Coastlines: Natural Earth. Built for NASA Space Apps 2026.
+                    Data: NASA GMAO MERRA-2 monthly reanalysis (1980–2025) via <a href="https://disc.gsfc.nasa.gov/datasets?project=MERRA-2" target="_blank" rel="noopener noreferrer">NASA GES DISC</a>. El Niño index: NOAA CPC Niño 3.4. Beijing ground check: NASA AERONET. Coastlines and cities: Natural Earth. Built for NASA Space Apps 2026.
                   </p>
                 </div>
                 <div className="flex flex-col gap-3">

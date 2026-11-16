@@ -8,6 +8,7 @@ import { ColumnGlobe, type Target, type YearView } from "@/components/ColumnGlob
 import { CellInfo, hudLines } from "@/components/CellInfo";
 import { Brackets, SectionLabel } from "@/components/ui";
 import { reducedMotion } from "@/components/globeFx";
+import { CityCard, HometownSearch, cityKey, findCity, loadAllGrids, loadCities, type City } from "@/components/Hometown";
 
 const STEPS: { mode: Mode; step: string; short: string; noun: string; text: string; color: string }[] = [ // color = the CSS variable that carries the step's meaning
   { mode: "naive", step: "Step 1 · The simple test", short: "Simple test", noun: "places look like they have a trend", color: "var(--ink)",
@@ -114,6 +115,8 @@ export default function GlobePage() {
   const [yearIdx, setYearIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [oos, setOos] = useState(false); // colour by the out-of-sample (walk-forward) check
+  const [city, setCity] = useState<City | null>(null);
+  const [cityGrids, setCityGrids] = useState<Record<string, Grid> | null>(null);
 
   // Shareable links: ?v=&region=&enso=1&year= . The address is read once, when the page opens.
   const initial = useRef<URLSearchParams | null>(null);
@@ -169,7 +172,7 @@ export default function GlobePage() {
   }, [pick, place, g, v, mode, enso]);
 
   const choose = (k: string) => { if (k !== "T2M") stopYears(); setV(k); };
-  const pickCell = (p: { lat: number; lng: number }) => { if (g && meta) { setPlace(null); setPick(cellAt(g, meta.grid.lat, meta.grid.lon, p)); } };
+  const pickCell = (p: { lat: number; lng: number }) => { if (g && meta) { setPlace(null); setCity(null); setPick(cellAt(g, meta.grid.lat, meta.grid.lon, p)); } };
 
   // A region or demo case from the menu: fly there and label it with that place's own trend and q.
   const jump = async (val: string) => {
@@ -180,7 +183,7 @@ export default function GlobePage() {
     if (k !== v) choose(k);
     const d = (await get(`regions/${id}.json`)).variables[k];
     const [a, b, c, e] = r.box, wrapAll = e - c >= 359;
-    setPick(null);
+    setPick(null); setCity(null);
     setPlace({
       key: `place-${val}`, lat: wrapAll ? 75 : (a + b) / 2, lng: wrapAll ? 0 : (c + e) / 2,
       lines: [`${r.name.toUpperCase()} · ${ll(wrapAll ? 75 : (a + b) / 2, wrapAll ? 0 : (c + e) / 2)}`,
@@ -196,7 +199,7 @@ export default function GlobePage() {
   // page as it was before (variable, step, El Niño, place, year, and the exact address). Under reduced motion the flat
   // map is shown, so steps cut instead of flying.
   type Caption = { n: number; eyebrow: string; text: string; final?: [string, string][] };
-  type Snapshot = { v: string; mode: Mode; enso: boolean; pick: Pick | null; place: Target | null; yearIdx: number | null; url: string; oos: boolean };
+  type Snapshot = { v: string; mode: Mode; enso: boolean; pick: Pick | null; place: Target | null; yearIdx: number | null; url: string; oos: boolean; city: City | null };
   const [tour, setTour] = useState<Caption | null>(null);
   const [pending, setPending] = useState(false);
   const [built, setBuilt] = useState(false);
@@ -212,7 +215,7 @@ export default function GlobePage() {
     const s0 = snap.current;
     snap.current = null;
     if (!s0) return;
-    setV(s0.v); setMode(s0.mode); setEnso(s0.enso); setPick(s0.pick); setPlace(s0.place); setPlaying(false); setYearIdx(s0.yearIdx); setOos(s0.oos);
+    setV(s0.v); setMode(s0.mode); setEnso(s0.enso); setPick(s0.pick); setPlace(s0.place); setPlaying(false); setYearIdx(s0.yearIdx); setOos(s0.oos); setCity(s0.city);
     restoreUrl.current = s0.url;
   }, []);
   const requestTour = () => {
@@ -220,14 +223,14 @@ export default function GlobePage() {
     // The address to put back afterwards: as it was, minus ?tour=1, so a reload doesn't replay the tour.
     const q = new URLSearchParams(window.location.search);
     q.delete("tour");
-    snap.current = { v, mode, enso, pick, place, yearIdx, url: window.location.pathname + (q.size ? `?${q}` : ""), oos };
+    snap.current = { v, mode, enso, pick, place, yearIdx, url: window.location.pathname + (q.size ? `?${q}` : ""), oos, city };
     setPending(true);
   };
   const runTour = async () => {
     if (!meta || running.current) return;
     running.current = true;
     timers.current.forEach((t) => window.clearTimeout(t)); timers.current = [];
-    stopYears(); setOos(false); setPick(null); setPlace(null); setEnso(false); setMode("naive");
+    stopYears(); setOos(false); setCity(null); setPick(null); setPlace(null); setEnso(false); setMode("naive");
     if (v !== "T2M") choose("T2M");
     const S = meta.grid_summary.T2M, r = (await get("regions/arctic.json")).variables.T2M;
     const steps: [number, string, string, () => void, [string, string][]?][] = [
@@ -290,25 +293,37 @@ export default function GlobePage() {
     const q = new URLSearchParams({ v });
     if (placeVal) q.set("region", placeVal);
     if (enso) q.set("enso", "1");
+    if (city) q.set("city", cityKey(city));
     if (yearVal != null && v === "T2M") q.set("year", String(yearVal));
     const url = `/globe?${q}`;
     // history.replaceState (Next keeps its router in sync with it): replaces like router.replace, but synchronously, so two
     // quick updates (restoring a region, then a year) can't race and leave the older address behind.
     if (url !== window.location.pathname + window.location.search) window.history.replaceState(window.history.state, "", url);
-  }, [meta, restoring, touring, v, placeVal, enso, yearVal]);
+  }, [meta, restoring, touring, v, placeVal, enso, yearVal, city]);
   const restored = useRef(false);
   useEffect(() => {
     if (restored.current || !meta || !haveGrid) return;
     restored.current = true;
-    const q = initial.current, region = q?.get("region"), year = Number(q?.get("year"));
+    const q = initial.current, region = q?.get("region"), year = Number(q?.get("year")), cityParam = q?.get("city");
     const id = window.setTimeout(async () => {
-      if (q && !q.has("tour")) await Promise.all([region ? jump(region) : null, year && (q.get("v") ?? "T2M") === "T2M" ? showYear(year) : null]);
+      if (q && !q.has("tour")) await Promise.all([region ? jump(region) : null, year && (q.get("v") ?? "T2M") === "T2M" ? showYear(year) : null,
+        cityParam ? loadCities().then((list) => { const c = findCity(list, cityParam); if (c) selectCity(c); }).catch(() => {}) : null]);
       setRestoring(false);
     }, 300);
     return () => window.clearTimeout(id);
     // jump and showYear are recreated every render; this runs once, when the data first arrives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, haveGrid]);
+  // A city from the search: fly there and show its square's verdict for every variable.
+  function selectCity(c: City) {
+    if (!meta) return;
+    setPick(null); setCity(c);
+    loadAllGrids(Object.keys(meta.grid_summary)).then(setCityGrids).catch(() => {});
+    const cell = g ? cellAt(g, meta.grid.lat, meta.grid.lon, { lat: c.lat, lng: c.lon }) : null;
+    const lines = (cell && hudLines(g, v, cell, mode, enso)) || [];
+    setPlace({ key: `city-${cityKey(c)}`, lat: c.lat, lng: c.lon, lines: [`${c.name.toUpperCase()} · ${ll(c.lat, c.lon)}`, ...lines.slice(1)],
+      href: `/explore?place=${encodeURIComponent(`pt:${c.lat},${c.lon}`)}&v=${v}&step=data`, linkLabel: "Open a case here" });
+  }
   const copyLink = () => {
     navigator.clipboard?.writeText(window.location.href).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); }).catch(() => {});
   };
@@ -346,6 +361,7 @@ export default function GlobePage() {
             </div>
             <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
             <button type="button" onClick={requestTour} className="pill nav-glass shrink-0 !text-[var(--ink)]">▶ Watch the investigation</button>
+            <HometownSearch onPick={selectCity} />
             <button type="button" onClick={copyLink} className="pill nav-glass shrink-0" aria-live="polite">{copied ? "Copied" : "Copy link"}</button>
             <label className="flex min-w-0 max-w-full items-center gap-2"><span className="hud hidden sm:inline">Fly to</span>
               <select className="nav-glass hud h-11 w-56 max-w-full cursor-pointer rounded-full px-4 text-ink" defaultValue=""
@@ -439,6 +455,11 @@ export default function GlobePage() {
             {oos ? <OosKey /> : yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}
           </div>
         )}
+        {city && cityGrids && (
+          <div className="absolute right-6 top-[230px] z-20 hidden w-[360px] min-[1100px]:block">
+            <CityCard city={city} k={cellAt(cityGrids.T2M, meta.grid.lat, meta.grid.lon, { lat: city.lat, lng: city.lon }).k} grids={cityGrids} onClose={() => { setCity(null); setPlace(null); }} />
+          </div>
+        )}
         {/* Tour captions: bottom, glass, design-system easing; the last one is a centred verdict card. */}
         <AnimatePresence mode="wait">
           {tour && !tour.final && (
@@ -471,6 +492,11 @@ export default function GlobePage() {
       </section>
 
       <div className="flex flex-col gap-6">
+        {city && cityGrids && (
+          <div className="min-[1100px]:hidden">
+            <CityCard city={city} k={cellAt(cityGrids.T2M, meta.grid.lat, meta.grid.lon, { lat: city.lat, lng: city.lon }).k} grids={cityGrids} onClose={() => { setCity(null); setPlace(null); }} />
+          </div>
+        )}
         <div className={flat ? "" : "lg:hidden"}>{oos && !flat ? <OosKey /> : yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}</div>
         <p className="hud text-ink-dim">Drag to spin · pinch or scroll to zoom · tap or click a square · each column is one square, its height the size of the trend</p>
         <CellInfo meta={meta} grid={g} v={v} pick={pick} mode={mode} enso={enso} onClose={() => setPick(null)} />
