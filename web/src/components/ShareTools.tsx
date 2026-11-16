@@ -7,14 +7,19 @@ const csvCell = (v: string | number | null | undefined) => {
   return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
 };
 
+/** A case's numbers as CSV: # notes, the yearly table, then a "field,value" summary block. Built in the browser. */
+export type CsvSpec = { filename: string; header: string[]; rows: (string | number | null)[][]; notes: string[]; summary?: [string, string | number | null][] };
+export function downloadCsv({ filename, header, rows, notes, summary }: CsvSpec, cite?: string) {
+  const lines = [...notes.map((n) => `# ${n}`), ...(cite ? [`# Cite: ${cite}`] : []), header.map(csvCell).join(","), ...rows.map((r) => r.map(csvCell).join(","))];
+  if (summary?.length) lines.push("", "field,value", ...summary.map((r) => r.map(csvCell).join(",")));
+  const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv;charset=utf-8" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: `${filename}.csv` });
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** "Use this case": copy a link to it, download its numbers as CSV, and a ready-made citation. */
-export function ShareTools({ title, filename, header, rows, notes }: {
-  title: string;                       // what this case is, for the citation
-  filename: string;                    // without .csv
-  header: string[];
-  rows: (string | number | null)[][];
-  notes: string[];                     // written above the table as # comment lines (source, units, method)
-}) {
+export function ShareTools({ title, ...csv }: CsvSpec & { title: string /* what this case is, for the citation */ }) {
   const [copied, setCopied] = useState("");
   const link = () => window.location.href;
   const year = new Date().getFullYear();
@@ -24,13 +29,7 @@ export function ShareTools({ title, filename, header, rows, notes }: {
     try { await navigator.clipboard.writeText(text); setCopied(what); } catch { setCopied("error"); }
     window.setTimeout(() => setCopied(""), 2000);
   };
-  const download = () => {
-    const lines = [...notes.map((n) => `# ${n}`), `# Cite: ${cite}`, header.map(csvCell).join(","), ...rows.map((r) => r.map(csvCell).join(","))];
-    const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv;charset=utf-8" }));
-    const a = Object.assign(document.createElement("a"), { href: url, download: `${filename}.csv` });
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-  };
+  const download = () => downloadCsv(csv, cite);
 
   return (
     <Card className="flex flex-col gap-3">
@@ -38,7 +37,7 @@ export function ShareTools({ title, filename, header, rows, notes }: {
       <h2 className="sr-only">Use this case</h2>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="pill" onClick={() => copy(link(), "link")}>{copied === "link" ? "Link copied ✓" : "Copy link"}</button>
-        <button type="button" className="pill" onClick={download}>Download the data (CSV)</button>
+        <button type="button" className="pill" onClick={download}>Download data (CSV)</button>
         <button type="button" className="pill" onClick={() => copy(cite, "cite")}>{copied === "cite" ? "Citation copied ✓" : "Copy citation"}</button>
       </div>
       <p className="text-[13px] leading-relaxed text-[var(--ink-dim)]">{cite}</p>
