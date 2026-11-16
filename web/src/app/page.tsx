@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { DEMOS, get, type Grid, type Meta, type Region } from "@/lib/data";
 import { CasesScene, ChecksScene, EndBeat, HeroScene, MissionScene, NoiseScene, SmoothScroll, StoryGlobe } from "@/components/Scenes";
+import { Leaderboard } from "@/components/Leaderboard";
 
 // The landing page is five scroll-scrubbed scenes over one story globe that follows them.
 export default function Landing() {
@@ -23,6 +24,10 @@ export default function Landing() {
       <SmoothScroll />
       <StoryGlobe grid={grid} meta={meta} />
       <HeroScene cells={meta?.grid_summary.T2M.cells} />
+      {/* Solid ground: numbers never sit on top of the story globe. */}
+      <section className="bleed relative bg-[var(--ground)] px-4 py-20 sm:px-8">
+        <div className="mx-auto max-w-[900px]">{meta && <Leaderboard meta={meta} />}</div>
+      </section>
       <MissionScene meta={meta} />
       <NoiseScene meta={meta} grid={grid} />
       <CasesScene cases={cases} />

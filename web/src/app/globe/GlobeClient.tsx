@@ -6,6 +6,7 @@ import { DEMOS, NICE, VERDICT, fmt, get, pfmt, signed, type Grid, type Meta } fr
 import { GlobeScale, cellAt, coast, flatMap, type Mode, type Pick } from "@/components/Globe";
 import { ColumnGlobe, type Target, type YearView } from "@/components/ColumnGlobe";
 import { CellInfo, hudLines } from "@/components/CellInfo";
+import { Leaderboard } from "@/components/Leaderboard";
 import { Brackets, SectionLabel } from "@/components/ui";
 import { reducedMotion } from "@/components/globeFx";
 import { CityCard, HometownSearch, cityKey, findCity, loadAllGrids, loadCities, type City } from "@/components/Hometown";
@@ -500,6 +501,9 @@ export default function GlobePage() {
         <div className={flat ? "" : "min-[1100px]:hidden"}>{oos && !flat ? <OosKey /> : yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}</div>
         <p className="hud text-ink-dim">Drag to spin · pinch or scroll to zoom · tap or click a square · each column is one square, its height the size of the trend</p>
         <CellInfo meta={meta} grid={g} v={v} pick={pick} mode={mode} enso={enso} onClose={() => setPick(null)} />
+        <section className="glass p-5 sm:p-7" aria-label="Which variables can you trust?">
+          <Leaderboard meta={meta} active={v} onPick={(k) => { setOos(false); choose(k); window.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" }); }} />
+        </section>
         <AnimatePresence mode="wait">
           <motion.div key={v} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="glass flex flex-col gap-2 px-6 py-5 text-[15px] leading-relaxed text-ink-dim">
