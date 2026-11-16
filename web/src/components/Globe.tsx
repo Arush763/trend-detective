@@ -10,10 +10,10 @@ export type Mode = "naive" | "noise" | "real";
 export const FLAT = [36, 36, 35];         // tested, but no trend passed this test: --noise darkened so it reads as background
 export const NODATA = [17, 17, 18];      // not measured here, e.g. ocean for land-only variables
 export const LUCK = [197, 138, 214];     // --false-alarm: a false alarm on shuffled data (its direction means nothing)
-// Ramps run dim → bright, two hues only. Heat-like variables: rising = ash (--warming), falling = navy (--cooling).
-// Water variables: wetter = navy, drier = ash.
-const WARM = [[66, 65, 62], [138, 136, 131], [200, 198, 192]]; // kept below the ink so the globe reads as a quiet reference
-const COOL = [[30, 42, 82], [82, 113, 206], [176, 194, 240]];
+// Ramps run dim → bright: the design system's diverging pair. Heat-like variables: rising = orange (--warming),
+// falling = blue (--cooling). Water variables: wetter = blue, drier = orange.
+const WARM = [[96, 52, 28], [255, 138, 61], [255, 214, 180]];
+const COOL = [[28, 46, 96], [91, 147, 255], [200, 220, 255]];
 const WET = COOL;
 const DRY = WARM;
 const WATER = new Set(["TQV", "PRECTOTCORR", "EVAP", "GWETROOT", "SNOMAS", "RUNOFF"]);
@@ -24,7 +24,7 @@ const ramp = (stops: number[][], t: number) => (t < 0.5 ? lerp(stops[0], stops[1
 export const rgb = (c: number[]) => `rgb(${c.join(",")})`;
 /** The colour for a rising (+1) or falling (−1) trend of this variable, at full strength. */
 export const trendColor = (v: string, sign: number) => (sign === 0 ? "var(--ink-dim)" : rgb(ramp(sign > 0 ? ramps(v).up : ramps(v).down, 0.6)));
-/** CSS colour for a trend line/bar: heat-like vars rising = --warming, falling = --cooling; water vars wetter = --cooling, drier = --warming (ash). */
+/** CSS colour for a trend line/bar: heat-like vars rising = --warming (orange), falling = --cooling (blue); water vars wetter = --cooling, drier = --warming. */
 export const trendToneCss = (v: string, slope: number) => (WATER.has(v) ? (slope >= 0 ? "var(--cooling)" : "var(--warming)") : slope >= 0 ? "var(--warming)" : "var(--cooling)");
 const rampCss =(stops: number[][]) => `linear-gradient(90deg, ${[T0, (T0 + 1) / 2, 1].map((t) => rgb(ramp(stops, t))).join(",")})`;
 

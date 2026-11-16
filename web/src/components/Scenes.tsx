@@ -153,10 +153,10 @@ function MissionStage({ p, meta, words }: { p: MotionValue<number>; meta: Meta; 
 /* ---------------------------------------------------------------- 3. The noise test (dot map) */
 type RGB = [number, number, number];
 // Same hues as the tokens: --warming, --cooling, --false-alarm, and a dark neutral for "no trend found".
-const DIM: RGB = [44, 44, 42], UP: RGB = [220, 218, 212], DOWN: RGB = [110, 143, 224], LUCK: RGB = [197, 138, 214];
+const DIM: RGB = [44, 44, 42], UP: RGB = [255, 138, 61], DOWN: RGB = [91, 147, 255], LUCK: RGB = [197, 138, 214];
 const STAGES = [
   { at: 0.0, word: "Every place", title: "Here is every place on Earth", text: "Each dot stands for four of our 12,960 map squares (each about 200 km wide). For each one we have 46 years of NASA air-temperature data.", key: "cells", noun: "places" },
-  { at: 0.22, word: "Simple", title: "Step 1 · The simple test", text: "Check each place on its own, the way most maps are made. Light: warming. Blue: cooling.", key: "naive_sig", noun: "look like they're changing" },
+  { at: 0.22, word: "Simple", title: "Step 1 · The simple test", text: "Check each place on its own, the way most maps are made. Orange: warming. Blue: cooling.", key: "naive_sig", noun: "look like they're changing" },
   { at: 0.46, word: "Luck", title: "Step 2 · The luck test", text: "Now shuffle each place's years into random order, which wipes out any real trend. The simple test still lights up about 1 place in 20. Those are false alarms.", key: "noise_sig", noun: "false alarms from pure luck" },
   { at: 0.7, word: "Signal", title: "Step 3 · The strict test", text: "Correct for years that resemble each other and for testing thousands of places at once. What survives is very unlikely to be luck.", key: "real_sig", noun: "places with a real signal" },
 ] as const;
@@ -405,7 +405,7 @@ function CasesStage({ p, cases }: { p: MotionValue<number>; cases: Record<string
           <WaveTitle text="Same warming, opposite rain?" className="font-display text-[26px] leading-[30px]" />
           <div><Badge tone="real">Opposite trends</Badge></div>
           <div className={MEDIA}><div className={`${ZOOM} gap-2`}>
-            {/* Water variable: less rain = ash (drier), more rain = navy (wetter). */}
+            {/* Water variable: less rain = orange (drier), more rain = blue (wetter). */}
             {[["amazon", "Amazon rainforest: less rain", "var(--warming)"], ["himalaya", "Himalaya & Tibet: more rain", "var(--cooling)"]].map(([id, label, col]) => {
               const d = cases[id]?.variables.PRECTOTCORR;
               return d && (
@@ -593,7 +593,7 @@ export function StoryGlobe({ grid, meta }: { grid: Grid | null; meta: Meta }) {
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <motion.div style={{ x, y: yy, scale, opacity }} className="absolute inset-0">
         <Globe grid={grid} mode="real" spin={!region && place !== "compare"} zoom={false} fill focus={focus} box={region?.box}
-          label="A globe of NASA air-temperature trends that follows the story. Light shows warming, blue cooling, where the trend passed the strict test." />
+          label="A globe of NASA air-temperature trends that follows the story. Orange shows warming, blue cooling, where the trend passed the strict test." />
       </motion.div>
     </div>
   );

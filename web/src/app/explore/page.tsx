@@ -20,7 +20,7 @@ const GETTING: [string, string][] = [
   ["RUNOFF", "more runoff"], ["EVAP", "more evaporation"], ["TOTEXTTAU", "hazier"], ["DUEXTTAU", "dustier"],
 ];
 const page = { initial: { opacity: 0, x: 24 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -24 }, transition: { duration: 0.3 } };
-/** Water variables: wetter = navy, drier = ash. Everything else: rising = warming, falling = cooling. */
+/** Water variables: wetter = blue, drier = orange. Everything else: rising = warming, falling = cooling. */
 const trendTone = trendToneCss; // one source of truth, shared with /compare (see Globe.tsx)
 /** Question headers report whether they are on screen, so the floating status pill can show only once the header has scrolled away. */
 const HeaderSeen = createContext<(on: boolean) => void>(() => {});

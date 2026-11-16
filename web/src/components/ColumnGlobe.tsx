@@ -12,7 +12,7 @@ import { R, addPolish, dirOf, flyTo, idleSpin, reducedMotion } from "./globeFx";
 
 // Data colours as sRGB 0–1 (the shader writes them straight out). Same values as the CSS tokens.
 const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
-const WARM = hex("#dcdad4"), COOL = hex("#6e8fe0"), ALARM = hex("#c58ad6");
+const WARM = hex("#ff8a3d"), COOL = hex("#5b93ff"), ALARM = hex("#c58ad6");
 const WATER = new Set(["TQV", "PRECTOTCORR", "EVAP", "GWETROOT", "SNOMAS", "RUNOFF"]);
 const RISE_MS = 1200, DISSOLVE_MS = 1100, MAX_PARTICLES = 15000, PER_COLUMN = 20;
 const H_MIN = 0.8, H_MAX = 9, H_ALARM = 4.5; // column heights in globe units (radius 100)
@@ -66,7 +66,7 @@ type Cols = { mesh: any; cells: number[]; h0: Float32Array; h1: Float32Array; c0
 export type YearView = { a: Int8Array; idx: number; step: number; nodata: number; nCells: number };
 const YEAR_MS = 280;
 
-/** Height and colour of every column for one year: light = warmer than that square's average, navy = cooler. */
+/** Height and colour of every column for one year: orange = warmer than that square's average, blue = cooler. */
 function yearTargets(y: YearView, cells: number[]) {
   const n = cells.length, h = new Float32Array(n), c = new Float32Array(n * 3);
   cells.forEach((k, i) => {
@@ -86,7 +86,7 @@ function targets(grid: Grid, cells: number[], mode: Mode, enso: boolean) {
   cells.forEach((k, i) => {
     const s = slopeOf(grid, k, mode === "real" ? "real" : "naive", enso) ?? 0;
     const height = H_MIN + (H_MAX - H_MIN) * Math.min(1, Math.abs(s) / max);
-    const dir = (s >= 0) !== water ? WARM : COOL; // heat: rising = warm; water: wetter = cool (navy)
+    const dir = (s >= 0) !== water ? WARM : COOL; // heat: rising = orange; water: wetter = blue
     let col = dir, hh = 0;
     if (mode === "naive") { if (isSig(grid, k, "naive", enso)) hh = height; }
     else if (mode === "noise") {
@@ -101,8 +101,10 @@ function targets(grid: Grid, cells: number[], mode: Mode, enso: boolean) {
 const ringCol = () => (t: number) => `rgba(236,235,232,${1 - t})`;
 const easeIO = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 
-export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, onPick, label }: {
+export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, onPick, label, loading = "Loading…" }: {
   grid: Grid | null; lat: number[]; lon: number[]; mode: Mode; enso: boolean; year?: YearView | null; target: Target | null;
+  /** Shown until the first columns are on screen (the 3D engine and textures take a few seconds on a slow connection). */
+  loading?: string;
   onPick: (p: { lat: number; lng: number }) => void; label: string;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -113,6 +115,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
   const sizeRef = useRef(size);
   sizeRef.current = size;
   const [ready, setReady] = useState(false);
+  const [built, setBuilt] = useState(false);
   const cols = useRef<Cols | null>(null);
   const uT = useRef({ value: 1 }), uS = useRef({ value: STAGGER });
   const prev = useRef<{ mode: Mode; enso: boolean; v: string; year: number | null } | null>(null);
@@ -166,6 +169,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
       c.mesh.frustumCulled = false;
       scene.add(c.mesh);
       cols.current = c;
+      requestAnimationFrame(() => setBuilt(true)); // the first frame with columns has been drawn
     } else {
       for (let i = 0; i < c.cells.length; i++) {
         const e = progress(i, c);
@@ -317,6 +321,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
           onGlobeClick={onPick} onGlobeReady={onReady} animateIn={false} />
       )}
       {label2}
+      {!built && <div role="status" className="pointer-events-none absolute inset-0 flex items-center justify-center"><p className="hud nav-glass flex items-center gap-2 rounded-full px-4 py-2 !text-[var(--ink)]"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--ink)] motion-safe:animate-pulse" />{loading}</p></div>}
     </div>
   );
 }
