@@ -594,7 +594,7 @@ export function StoryGlobe({ grid, meta }: { grid: Grid | null; meta: Meta }) {
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <motion.div style={{ x, y: yy, scale, opacity }} className="absolute inset-0">
         <Globe grid={grid} mode="real" spin={!region && place !== "compare"} zoom={false} fill focus={focus} box={region?.box}
-          label="A globe of NASA air-temperature trends that follows the story. Orange shows warming, blue cooling, where the trend passed the strict test." />
+          label="A globe of NASA air-temperature trends that follows the story. White shows warming, grey cooling, where the trend passed the strict test." />
       </motion.div>
     </div>
   );

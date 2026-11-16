@@ -12,8 +12,11 @@ import { R, addPolish, dirOf, flyTo, idleSpin, reducedMotion } from "./globeFx";
 
 // Data colours as sRGB 0–1 (the shader writes them straight out). Same values as the CSS tokens.
 const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
-const WARM = hex("#ff8a3d"), COOL = hex("#5b93ff"), ALARM = hex("#c58ad6");
-const WATER = new Set(["TQV", "PRECTOTCORR", "EVAP", "GWETROOT", "SNOMAS", "RUNOFF"]);
+// Monochrome: rising = white, falling = cool grey; strength = "opacity" 0.35 → 1, mixed over the globe's surface so the
+// solid columns need no transparency sorting. The accent (violet) is only for false alarms and the selected place.
+const UP = hex("#f5f5f2"), DOWN = hex("#6b7280"), ALARM = hex("#c58ad6"), SURFACE = hex("#141415");
+const over = (c: number[], a: number) => c.map((x, i) => SURFACE[i] + (x - SURFACE[i]) * a);
+const alpha = (m: number) => 0.35 + 0.65 * Math.min(1, m);
 const RISE_MS = 1200, DISSOLVE_MS = 1100, MAX_PARTICLES = 15000, PER_COLUMN = 20;
 const H_MIN = 0.8, H_MAX = 9, H_ALARM = 4.5; // column heights in globe units (radius 100)
 const STAGGER = 0.4;                       // share of the rise spent sweeping north → south
@@ -66,7 +69,7 @@ type Cols = { mesh: any; cells: number[]; h0: Float32Array; h1: Float32Array; c0
 export type YearView = { a: Int8Array; idx: number; step: number; nodata: number; nCells: number };
 const YEAR_MS = 280;
 
-/** Height and colour of every column for one year: orange = warmer than that square's average, blue = cooler. */
+/** Height and colour of every column for one year: white = warmer than that square's average, grey = cooler. */
 function yearTargets(y: YearView, cells: number[]) {
   const n = cells.length, h = new Float32Array(n), c = new Float32Array(n * 3);
   cells.forEach((k, i) => {
@@ -74,31 +77,31 @@ function yearTargets(y: YearView, cells: number[]) {
     if (q === y.nodata) return;
     const an = q * y.step, m = Math.min(1, Math.abs(an) / 3);
     h[i] = H_MIN + (H_MAX - H_MIN) * m;
-    c.set((an >= 0 ? WARM : COOL).map((x) => x * (0.35 + 0.65 * m)), i * 3);
+    c.set(over(an >= 0 ? UP : DOWN, alpha(m)), i * 3);
   });
   return { h, c };
 }
 
 /** Target height and colour of every column for a step. */
 function targets(grid: Grid, cells: number[], mode: Mode, enso: boolean) {
-  const max = scaleOf(grid), water = WATER.has(grid.var), n = cells.length;
+  const max = scaleOf(grid), n = cells.length;
   const h = new Float32Array(n), c = new Float32Array(n * 3);
   cells.forEach((k, i) => {
     const s = slopeOf(grid, k, mode === "real" ? "real" : "naive", enso) ?? 0;
     const height = H_MIN + (H_MAX - H_MIN) * Math.min(1, Math.abs(s) / max);
-    const dir = (s >= 0) !== water ? WARM : COOL; // heat: rising = orange; water: wetter = blue
+    const a = alpha(Math.abs(s) / max), dir = over(s >= 0 ? UP : DOWN, a); // rising = white, falling = grey, any variable
     let col = dir, hh = 0;
     if (mode === "naive") { if (isSig(grid, k, "naive", enso)) hh = height; }
     else if (mode === "noise") {
       if (grid.p_noise[k] < 0.05) { hh = H_ALARM; col = ALARM; }
-      else if (isSig(grid, k, "naive", enso)) { hh = height; col = dir.map((x) => x * 0.3); }
+      else if (isSig(grid, k, "naive", enso)) { hh = height; col = over(s >= 0 ? UP : DOWN, a * 0.3); }
     } else if (isSig(grid, k, "real", enso)) hh = height;
     h[i] = hh; c.set(col, i * 3);
   });
   return { h, c };
 }
 
-const ringCol = () => (t: number) => `rgba(236,235,232,${1 - t})`;
+const ringCol = () => (t: number) => `rgba(197,138,214,${1 - t})`; // accent: the selected place
 const easeIO = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 
 export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, onPick, label, loading = "Loading…", loadingNote, onBuilt }: {
@@ -307,7 +310,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
         <svg aria-hidden="true" width={size.w} height={size.h} className="absolute inset-0 overflow-visible">
           <motion.path key={target.key} d={`M${spot.x} ${spot.y} L${ax} ${ay}`} fill="none" stroke="var(--ink-muted)" strokeWidth={1}
             initial={reducedMotion() ? false : { pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }} />
-          <circle cx={spot.x} cy={spot.y} r={3} fill="var(--ink)" />
+          <circle cx={spot.x} cy={spot.y} r={3} fill="var(--false-alarm)" />
         </svg>
         <motion.div key={target.key} initial={reducedMotion() ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.3 }}
           className="pointer-events-auto absolute flex flex-col gap-1 rounded-[var(--radius-sm)] border border-hairline bg-[color-mix(in_srgb,var(--ground)_90%,transparent)] px-3 py-2.5" style={{ left: x, top: y, width: W }}>

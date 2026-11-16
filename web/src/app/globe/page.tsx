@@ -52,7 +52,7 @@ function YearKey({ year }: { year: number }) {
     <div className="flex w-full flex-col gap-2 text-[13px] text-ink-dim">
       <div className="hud flex items-center gap-3">
         <span className="w-16 text-right">cooler</span>
-        <div className="h-3 flex-1 rounded-full" aria-hidden="true" style={{ background: "linear-gradient(90deg, var(--cooling), var(--ground-raised), var(--warming))" }} />
+        <div className="h-3 flex-1 rounded-full" aria-hidden="true" style={{ background: "linear-gradient(90deg, #6b7280, #3a3a3c, #242425, #3a3a3a, #f5f5f2)" }} />
         <span className="w-16">warmer</span>
       </div>
       <p className="text-center text-[12px]"><span className="num">{year}</span> air temperature compared with each square&apos;s own 1980–2025 average. Taller = further from normal (3 °C or more is full height). Real yearly NASA values, nothing smoothed.</p>
