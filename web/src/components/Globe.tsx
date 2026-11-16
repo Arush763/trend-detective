@@ -10,23 +10,23 @@ export type Mode = "naive" | "noise" | "real";
 export const FLAT = [36, 36, 35];         // tested, but no trend passed this test: --noise darkened so it reads as background
 export const NODATA = [17, 17, 18];      // not measured here, e.g. ocean for land-only variables
 export const LUCK = [197, 138, 214];     // --false-alarm: a false alarm on shuffled data (its direction means nothing)
-// Ramps run dim → bright: the design system's diverging pair. Heat-like variables: rising = orange (--warming),
-// falling = blue (--cooling). Water variables: wetter = blue, drier = orange.
-const WARM = [[96, 52, 28], [255, 138, 61], [255, 214, 180]];
-const COOL = [[28, 46, 96], [91, 147, 255], [200, 220, 255]];
-const WET = COOL;
-const DRY = WARM;
+// Monochrome, direction without hue: rising = white, falling = cool grey (#6b7280). Strength is "opacity" from 0.35
+// (weak) to 1.0 (strong), mixed over the no-trend grey so it reads the same on a texture as on the 3D columns.
+const over = (c: number[], a: number) => c.map((x, i) => Math.round(FLAT[i] + (x - FLAT[i]) * a));
+const RISE = [over([245, 245, 242], 0.35), over([245, 245, 242], 0.675), [245, 245, 242]];
+const FALL = [over([107, 114, 128], 0.35), over([107, 114, 128], 0.675), [107, 114, 128]];
 const WATER = new Set(["TQV", "PRECTOTCORR", "EVAP", "GWETROOT", "SNOMAS", "RUNOFF"]);
-const ramps = (v: string) => (WATER.has(v) ? { up: WET, down: DRY } : { up: WARM, down: COOL });
-const T0 = 0.4; // dimmest shade a coloured square gets, so weak trends still stand out from grey
+const ramps = () => ({ up: RISE, down: FALL });
+const T0 = 0; // the weakest trend gets the 0.35 shade
 const lerp = (a: number[], b: number[], t: number) => a.map((x, i) => Math.round(x + (b[i] - x) * t));
 const ramp = (stops: number[][], t: number) => (t < 0.5 ? lerp(stops[0], stops[1], t * 2) : lerp(stops[1], stops[2], (t - 0.5) * 2));
 export const rgb = (c: number[]) => `rgb(${c.join(",")})`;
 /** The colour for a rising (+1) or falling (−1) trend of this variable, at full strength. */
-export const trendColor = (v: string, sign: number) => (sign === 0 ? "var(--ink-dim)" : rgb(ramp(sign > 0 ? ramps(v).up : ramps(v).down, 0.6)));
+export const trendColor = (v: string, sign: number) => (sign === 0 ? "var(--ink-dim)" : rgb(ramp(sign > 0 ? ramps().up : ramps().down, 0.6)));
 /** CSS colour for a trend line/bar: heat-like vars rising = --warming (orange), falling = --cooling (blue); water vars wetter = --cooling, drier = --warming. */
 export const trendToneCss = (v: string, slope: number) => (WATER.has(v) ? (slope >= 0 ? "var(--cooling)" : "var(--warming)") : slope >= 0 ? "var(--warming)" : "var(--cooling)");
-const rampCss =(stops: number[][]) => `linear-gradient(90deg, ${[T0, (T0 + 1) / 2, 1].map((t) => rgb(ramp(stops, t))).join(",")})`;
+/** The colour key: strong falling (grey) → weak → no trend → weak → strong rising (white). */
+export const MONO_KEY = `linear-gradient(90deg, ${[...[...FALL].reverse(), FLAT, ...RISE].map(rgb).join(",")})`;
 
 let coastPromise: Promise<Path2D | null> | null = null;
 /** Natural Earth coastlines as a Path2D in (lon + 180, 90 − lat) degrees, or null if they failed to load. */
@@ -56,7 +56,7 @@ export function colorOf(grid: Grid, k: number, mode: Mode, enso: boolean, max: n
   if (s == null) return NODATA;
   if (!isSig(grid, k, mode, enso)) return FLAT;
   if (mode === "noise") return LUCK;
-  const r = ramps(grid.var);
+  const r = ramps();
   return ramp(s > 0 ? r.up : r.down, T0 + (1 - T0) * Math.min(1, Math.abs(s) / max));
 }
 
@@ -122,8 +122,9 @@ export function cellAt(grid: Grid, lat: number[], lon: number[], p: { lat: numbe
 export type Pick = { k: number; lat: number; lon: number };
 
 // Stable accessors, so the globe doesn't rebuild its layers on every render.
-const ptLat = (p: number[]) => p[0], ptLng = (p: number[]) => p[1], pathCol = () => "rgb(236,235,232)"; // --signal (ash ink on Night)
-const ringCol = () => (t: number) => `rgba(236,235,232,${1 - t})`;
+// The one accent colour marks interaction (the selected place) and false alarms: --false-alarm.
+const ptLat = (p: number[]) => p[0], ptLng = (p: number[]) => p[1], pathCol = () => "rgb(197,138,214)";
+const ringCol = () => (t: number) => `rgba(197,138,214,${1 - t})`;
 const ATMOSPHERE = "#2f4fa8"; // navy accent, lifted a little so the glow shows on black (WebGL cannot read CSS variables)
 
 const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -343,17 +344,13 @@ export function GlobeScale({ grid, units, mode, enso = false }: { grid: Grid | n
       </div>
     );
   }
-  const max = +scaleOf(grid).toPrecision(2), r = ramps(grid.var), water = WATER.has(grid.var);
+  const max = +scaleOf(grid).toPrecision(2);
   return (
     <div className="flex w-full max-w-[560px] flex-col gap-2 text-[13px] text-ink-dim">
       <div className="hud flex items-center gap-3">
-        <span className="w-20 text-right">{water ? "drier / less" : "falling"}</span>
-        <div className="flex h-3 flex-1 overflow-hidden rounded-full" aria-hidden="true">
-          <div className="h-full flex-1" style={{ background: rampCss(r.down), transform: "scaleX(-1)" }} />
-          <div className="h-full w-6" style={{ background: rgb(FLAT) }} />
-          <div className="h-full flex-1" style={{ background: rampCss(r.up) }} />
-        </div>
-        <span className="w-20">{water ? "wetter / more" : "rising"}</span>
+        <span className="w-20 text-right">falling</span>
+        <div className="h-3 flex-1 rounded-full" aria-hidden="true" style={{ background: MONO_KEY }} />
+        <span className="w-20">rising</span>
       </div>
       <div className="hud num flex justify-between px-[92px]">
         <span>≤ −{max}</span><span>no trend passed</span><span>≥ +{max}</span>
