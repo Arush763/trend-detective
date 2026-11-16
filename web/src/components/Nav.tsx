@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/#cases", label: "Demo cases", match: "" },
   { href: "/explore", label: "Explore", match: "/explore" },
   { href: "/globe", label: "Globe", match: "/globe" },
+  { href: "/lab", label: "Fool the detector", match: "/lab" },
   { href: "/how", label: "How it works", match: "/how" },
 ];
 

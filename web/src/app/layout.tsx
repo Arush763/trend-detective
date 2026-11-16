@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { themeColor: "#0a0a0b", colorScheme: "dark" };
 
-const LINKS = [["/#cases", "Demo cases"], ["/explore", "Explore a place"], ["/globe", "Globe"], ["/how", "How it works"], ["https://github.com/Arush763/trend-detective", "Code on GitHub"]];
+const LINKS = [["/#cases", "Demo cases"], ["/explore", "Explore a place"], ["/globe", "Globe"], ["/lab", "Fool the detector"], ["/how", "How it works"], ["https://github.com/Arush763/trend-detective", "Code on GitHub"]];
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
