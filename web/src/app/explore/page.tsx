@@ -585,7 +585,8 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
                     : <>{cap(placeName(info))} is moving in the opposite direction from Earth as a whole.</>}
                 {info.id === "arctic" && v === "T2M" && meta.sanity?.matched && (
                   <> Scientists call this <b className="font-normal text-[var(--ink)]">Arctic amplification</b>. One big reason: melting ice and snow uncover darker ground and water that soak up more sunlight.
-                    A 2022 study using observations found about 3.8 times for 1979–2021; our NASA data gives {fmt(meta.sanity.matched.ratio, 2)} times for nearly the same years (1980–2021), within the range different data sets give.</>
+                    Our NASA MERRA-2 data gives about {fmt(meta.sanity.ratio, 2)} times for 1980–2025 ({fmt(meta.sanity.matched.ratio, 2)} times for 1980–2021). Rantanen et al. (2022) found about 3.8 times from observations for 1979–2021.
+                    Reanalyses like MERRA-2 disagree with each other on Arctic trends, so a somewhat lower ratio here is expected.</>
                 )}
               </p>
             </Card>
