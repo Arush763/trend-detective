@@ -1,8 +1,8 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { DEMOS, NICE, VERDICT, fmt, get, signed, type Grid, type Meta } from "@/lib/data";
+import { DEMOS, NICE, VERDICT, fmt, get, pfmt, signed, type Grid, type Meta } from "@/lib/data";
 import { GlobeScale, cellAt, coast, flatMap, type Mode, type Pick } from "@/components/Globe";
 import { ColumnGlobe, type Target, type YearView } from "@/components/ColumnGlobe";
 import { CellInfo, hudLines } from "@/components/CellInfo";
@@ -92,12 +92,17 @@ export default function GlobePage() {
   const [yearIdx, setYearIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
 
+  // Shareable links: ?v=&region=&enso=1&year= . The address is read once, when the page opens.
+  const initial = useRef<URLSearchParams | null>(null);
+  const [copied, setCopied] = useState(false);
   useEffect(() => {
+    initial.current = new URLSearchParams(window.location.search);
     get("meta.json").then((m) => {
       setMeta(m);
       // ?v= picks the variable (e.g. from a case's verdict). Read after commit, not during render: see explore/page.tsx.
-      const q = new URLSearchParams(window.location.search).get("v");
+      const q = initial.current!.get("v");
       if (q && m.grid_summary[q]) setV(q);
+      if (initial.current!.get("enso") === "1") setEnso(true);
     }).catch((e) => setErr(String(e)));
   }, []);
   useEffect(() => {
@@ -119,17 +124,17 @@ export default function GlobePage() {
     }), 450);
     return () => window.clearInterval(id);
   }, [playing, anom]);
-  const startYears = async () => {
-    let A = anom;
-    if (!A) {
-      try {
-        const [info, buf] = await Promise.all([get("grid/T2M_anom.json"), fetch("/data/grid/T2M_anom.bin").then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })]);
-        A = { a: new Int8Array(buf), years: info.years, step: info.step, nodata: info.nodata, nCells: info.shape[0] * info.shape[1] };
-        setAnom(A);
-      } catch (e) { setErr(`the yearly data (${e})`); return; }
-    }
-    setYearIdx(0); setPlaying(true);
+  const loadAnom = async () => {
+    if (anom) return anom;
+    try {
+      const [info, buf] = await Promise.all([get("grid/T2M_anom.json"), fetch("/data/grid/T2M_anom.bin").then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })]);
+      const A: Anom = { a: new Int8Array(buf), years: info.years, step: info.step, nodata: info.nodata, nCells: info.shape[0] * info.shape[1] };
+      setAnom(A);
+      return A;
+    } catch (e) { setErr(`the yearly data (${e})`); return null; }
   };
+  const startYears = async () => { if (await loadAnom()) { setYearIdx(0); setPlaying(true); } };
+  const showYear = async (y: number) => { const A = await loadAnom(); const i = A ? A.years.indexOf(y) : -1; if (i >= 0) { setPlaying(false); setYearIdx(i); } };
   const stopYears = () => { setPlaying(false); setYearIdx(null); };
   // A clicked square's own numbers, or a region / demo case picked from the menu.
   const target: Target | null = useMemo(() => {
@@ -140,26 +145,14 @@ export default function GlobePage() {
     return place;
   }, [pick, place, g, v, mode, enso]);
 
-  if (err) return <p className="text-false-alarm">Could not load the data ({err}). Try reloading the page.</p>;
-  // Same full-screen frame from the first paint, so a slow connection shows a loading globe page, not an empty one.
-  // 12,960 = the 90 x 144 map grid (its size, not a result).
-  if (!meta) return (
-    <div className="-mt-24">
-      <section className="bleed relative flex h-[100svh] min-h-[560px] items-center justify-center" aria-label="The globe">
-        <p role="status" className="hud nav-glass flex items-center gap-2 rounded-full px-4 py-2 !text-[var(--ink)]"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--ink)] motion-safe:animate-pulse" />Loading 12,960 places…</p>
-      </section>
-    </div>
-  );
-  const s = meta.grid_summary[v];
-  const count = (m: Mode) => ({ naive: s.naive_sig, noise: s.noise_sig, real: enso ? s.enso_real_sig : s.real_sig }[m]);
-  const choose = (k: string) => { if (k !== "T2M") stopYears(); setV(k); window.history.replaceState(null, "", `/globe?v=${k}`); };
-  const pickCell = (p: { lat: number; lng: number }) => { if (g) { setPlace(null); setPick(cellAt(g, meta.grid.lat, meta.grid.lon, p)); } };
+  const choose = (k: string) => { if (k !== "T2M") stopYears(); setV(k); };
+  const pickCell = (p: { lat: number; lng: number }) => { if (g && meta) { setPlace(null); setPick(cellAt(g, meta.grid.lat, meta.grid.lon, p)); } };
 
   // A region or demo case from the menu: fly there and label it with that place's own trend and q.
   const jump = async (val: string) => {
     const demo = DEMOS.find((x) => `demo:${x.id}` === val);
     const id = demo ? demo.place : val, k = demo ? demo.v : v;
-    const r = meta.regions.find((x: any) => x.id === id);
+    const r = meta?.regions.find((x: any) => x.id === id);
     if (!r) return;
     if (k !== v) choose(k);
     const d = (await get(`regions/${id}.json`)).variables[k];
@@ -174,6 +167,102 @@ export default function GlobePage() {
     });
   };
 
+
+  // Guided tour, "Watch the investigation": about 30 s that drives the features above on a timer (no new visuals).
+  // Esc or any click stops it and leaves the page as it is. Under reduced motion the flat map is shown, so steps cut.
+  type Caption = { n: number; eyebrow: string; text: string; final?: [string, string][] };
+  const [tour, setTour] = useState<Caption | null>(null);
+  const timers = useRef<number[]>([]);
+  const autoTried = useRef(false);
+  const startTour = async () => {
+    if (!meta) return;
+    timers.current.forEach((t) => window.clearTimeout(t)); timers.current = [];
+    stopYears(); setPick(null); setPlace(null); setEnso(false); setMode("naive");
+    if (v !== "T2M") choose("T2M");
+    const S = meta.grid_summary.T2M, r = (await get("regions/arctic.json")).variables.T2M;
+    const steps: [number, string, string, () => void, [string, string][]?][] = [
+      [0, "NASA MERRA-2 · 1980–2025", `${n0(S.cells)} places on Earth, each tested for a trend.`, () => {}],
+      [3500, "The Arctic", "Is the Arctic really warming?", () => { jump("demo:arctic"); }],
+      [8000, "Air temperature · the Arctic", `${signed(r.slope_decade)} °C per decade: about ${fmt(r.total_change, 2)} °C warmer since 1980.`, () => {}],
+      [12500, "Step 2 · The luck test", `Shuffle every place's years and the simple test still finds ${n0(S.noise_sig)} trends. All of them fake.`, () => setMode("noise")],
+      [17500, "Step 3 · The strict test", `The fake trends dissolve. ${n0(S.real_sig)} real ones stay, the Arctic among them.`, () => setMode("real")],
+      [22500, "Remove El Niño", `Take out El Niño and the Arctic trend survives: ${signed(r.slope_enso_decade)} °C per decade.`, () => {
+        setEnso(true);
+        setPlace((pl) => (pl && pl.key === "place-demo:arctic" ? { ...pl, lines: [pl.lines[0], `T2M ${signed(r.slope_enso_decade)} °C/DEC · EL NIÑO REMOVED`, `CORRECTED p ${pfmt(r.p_enso_hr)}`] } : pl));
+      }],
+      [27500, "Verdict", "Real signal, not noise", () => {}, [
+        [n0(S.naive_sig), "looked like trends"], [n0(S.noise_sig), "were luck"], [n0(S.enso_real_sig), "passed the strict test, El Niño removed"]]],
+    ];
+    steps.forEach(([at, eyebrow, text, run, final], n) => timers.current.push(window.setTimeout(() => { run(); setTour({ n, eyebrow, text, final }); }, at)));
+  };
+  const touring = !!tour;
+  useEffect(() => {
+    if (!touring) return;
+    const stop = (e: Event) => {
+      if (e instanceof KeyboardEvent && e.key !== "Escape") return;
+      timers.current.forEach((t) => window.clearTimeout(t)); timers.current = []; setTour(null);
+    };
+    window.addEventListener("keydown", stop);
+    window.addEventListener("pointerdown", stop, true);
+    return () => { window.removeEventListener("keydown", stop); window.removeEventListener("pointerdown", stop, true); };
+  }, [touring]);
+  useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
+  // /globe?tour=1 (the home page button) starts the tour once the data is in.
+  const haveGrid = !!g;
+  useEffect(() => {
+    if (autoTried.current || !meta || !haveGrid || !initial.current?.has("tour")) return;
+    autoTried.current = true;
+    const id = window.setTimeout(() => { startTour(); }, 900);
+    return () => window.clearTimeout(id);
+    // startTour is recreated every render; this runs once, when the data first arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, haveGrid]);
+
+  // Keep the address in step with what's on screen (replace, not push: Back isn't flooded), and restore it on load.
+  // Nothing is written until the restore has run, so a shared link's region and year aren't dropped on the way in.
+  const placeVal = place?.key.startsWith("place-") ? place.key.slice(6) : "";
+  const yearVal = yearIdx != null && anom ? anom.years[yearIdx] : null;
+  const [restoring, setRestoring] = useState(true);
+  useEffect(() => {
+    if (!meta || restoring) return;
+    const q = new URLSearchParams({ v });
+    if (placeVal) q.set("region", placeVal);
+    if (enso) q.set("enso", "1");
+    if (yearVal != null && v === "T2M") q.set("year", String(yearVal));
+    const url = `/globe?${q}`;
+    // history.replaceState (Next keeps its router in sync with it): replaces like router.replace, but synchronously, so two
+    // quick updates (restoring a region, then a year) can't race and leave the older address behind.
+    if (url !== window.location.pathname + window.location.search) window.history.replaceState(window.history.state, "", url);
+  }, [meta, restoring, v, placeVal, enso, yearVal]);
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current || !meta || !haveGrid) return;
+    restored.current = true;
+    const q = initial.current, region = q?.get("region"), year = Number(q?.get("year"));
+    const id = window.setTimeout(async () => {
+      if (q && !q.has("tour")) await Promise.all([region ? jump(region) : null, year && (q.get("v") ?? "T2M") === "T2M" ? showYear(year) : null]);
+      setRestoring(false);
+    }, 300);
+    return () => window.clearTimeout(id);
+    // jump and showYear are recreated every render; this runs once, when the data first arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, haveGrid]);
+  const copyLink = () => {
+    navigator.clipboard?.writeText(window.location.href).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); }).catch(() => {});
+  };
+
+  if (err) return <p className="text-false-alarm">Could not load the data ({err}). Try reloading the page.</p>;
+  // Same full-screen frame from the first paint, so a slow connection shows a loading globe page, not an empty one.
+  // 12,960 = the 90 x 144 map grid (its size, not a result).
+  if (!meta) return (
+    <div className="-mt-24">
+      <section className="bleed relative flex h-[100svh] min-h-[560px] items-center justify-center" aria-label="The globe">
+        <p role="status" className="hud nav-glass flex items-center gap-2 rounded-full px-4 py-2 !text-[var(--ink)]"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--ink)] motion-safe:animate-pulse" />Loading 12,960 places…</p>
+      </section>
+    </div>
+  );
+  const s = meta.grid_summary[v];
+  const count = (m: Mode) => ({ naive: s.naive_sig, noise: s.noise_sig, real: enso ? s.enso_real_sig : s.real_sig }[m]);
   const active = STEPS.find((x) => x.mode === mode)!;
   return (
     <div className="-mt-24 flex flex-col gap-8">
@@ -191,7 +280,10 @@ export default function GlobePage() {
               <SectionLabel>The globe</SectionLabel>
               <h1 className="font-display text-[clamp(26px,3.4vw,44px)] leading-[1] tracking-[-0.02em] text-ink">Signal or noise?</h1>
             </div>
-            <label className="pointer-events-auto flex min-w-0 max-w-full items-center gap-2"><span className="hud hidden sm:inline">Fly to</span>
+            <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
+            <button type="button" onClick={() => { startTour(); }} className="pill nav-glass shrink-0 !text-[var(--ink)]">▶ Watch the investigation</button>
+            <button type="button" onClick={copyLink} className="pill nav-glass shrink-0" aria-live="polite">{copied ? "Copied" : "Copy link"}</button>
+            <label className="flex min-w-0 max-w-full items-center gap-2"><span className="hud hidden sm:inline">Fly to</span>
               <select className="nav-glass hud h-11 w-56 max-w-full cursor-pointer rounded-full px-4 text-ink" defaultValue=""
                 onChange={(e) => { jump(e.target.value); e.target.value = ""; }} aria-label="Fly to a place">
                 <option value="" disabled>Fly to…</option>
@@ -199,6 +291,7 @@ export default function GlobePage() {
                 <optgroup label="Regions">{meta.regions.filter((r: any) => r.id !== "global").map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}</optgroup>
               </select>
             </label>
+            </div>
           </div>
           <div className="pointer-events-auto -mx-4 flex flex-nowrap items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="What to map">
             {Object.keys(meta.grid_summary).map((k) => (
@@ -238,7 +331,7 @@ export default function GlobePage() {
         </div>
 
         {/* Bottom centre (above the steps on phones): play the record year by year. Air temperature only. */}
-        {!flat && v === "T2M" && (
+        {!flat && v === "T2M" && !tour && (
           <div className="nav-glass absolute inset-x-4 bottom-[132px] z-10 flex items-center gap-3 rounded-full px-3 py-1.5 sm:bottom-6 sm:left-[408px] sm:right-auto sm:w-[min(440px,calc(100vw-440px))] lg:right-[460px] lg:w-auto">
             {yearIdx == null || !anom ? (
               <button type="button" onClick={startYears} className="hud flex min-h-11 w-full items-center justify-center gap-2 !text-ink">▶ Play the years 1980–2025</button>
@@ -261,6 +354,35 @@ export default function GlobePage() {
             {yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}
           </div>
         )}
+        {/* Tour captions: bottom, glass, design-system easing; the last one is a centred verdict card. */}
+        <AnimatePresence mode="wait">
+          {tour && !tour.final && (
+            <motion.div key={tour.n} role="status" aria-live="polite" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6, transition: { duration: 0.2 } }}
+              transition={{ duration: 0.4, ease: [0.35, 0, 0, 1] }}
+              className="nav-glass absolute inset-x-4 bottom-[132px] z-20 flex flex-col gap-1 rounded-[var(--radius-sm)] px-5 py-4 sm:bottom-6 sm:left-[408px] sm:right-6 lg:right-[460px]">
+              <span className="hud">The investigation · {tour.n + 1} / 7 · {tour.eyebrow}</span>
+              <span className="font-display text-[20px] leading-[26px] text-ink sm:text-[24px] sm:leading-[30px]">{tour.text}</span>
+              <span className="hud !text-[10px] !text-ink-faint">Esc or click to stop</span>
+            </motion.div>
+          )}
+          {tour?.final && (
+            <motion.div key="final" role="status" aria-live="polite" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, ease: [0.35, 0, 0, 1] }}
+              className="glass absolute left-1/2 top-1/2 z-20 flex w-[min(560px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col gap-5 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.5)] sm:p-8">
+              <SectionLabel>{tour.eyebrow} · Air temperature · 1980–2025</SectionLabel>
+              <h2 className="font-display text-[clamp(32px,5vw,48px)] leading-[1.05] tracking-[-0.02em]">{tour.text}</h2>
+              <div className="grid grid-cols-3 gap-3 border-t border-hairline pt-4">
+                {tour.final.map(([num, what], i) => (
+                  <div key={what} className="flex flex-col gap-1">
+                    <span className="num text-[clamp(22px,3vw,32px)] leading-none" style={{ color: ["var(--ink)", "var(--false-alarm)", "var(--warming)"][i] }}>{num}</span>
+                    <span className="text-[13px] leading-snug text-ink-dim">{what}</span>
+                  </div>
+                ))}
+              </div>
+              <span className="hud !text-ink-faint">Esc or click to explore</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
       <div className="flex flex-col gap-6">

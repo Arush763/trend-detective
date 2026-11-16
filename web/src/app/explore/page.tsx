@@ -8,7 +8,7 @@ import { TrendChart } from "@/components/TrendChart";
 import { Badge, Brackets, Button, Card, Hud, SectionLabel, VerdictStamp } from "@/components/ui";
 import { Globe, GlobeScale, cellAt, trendToneCss, type Pick } from "@/components/Globe";
 import { CellInfo } from "@/components/CellInfo";
-import { ShareTools } from "@/components/ShareTools";
+import { ShareTools, downloadCsv, type CsvSpec } from "@/components/ShareTools";
 import { isCustomPlace, loadPlace, searchPlaces, type PlaceHit } from "@/lib/places";
 
 const STEPS = ["Question", "The data", "Check 1", "Check 2", "Check 3", "Check 4", "Verdict"];
@@ -268,6 +268,26 @@ function Question({ eyebrow, title, sub }: { eyebrow: string; title: string; sub
 
 /** "Is [place ▾] getting [warmer ▾]?" The place blank opens a picker: typing filters the built-in places, Enter searches
  * the whole world (OpenStreetMap Nominatim, only on request, as its usage policy asks). */
+/** One case's numbers for download: year, value, El Niño-removed value, then the statistics. Built from the loaded JSON. */
+function caseCsv(meta: Meta, info: Region, v: string, d: any): CsvSpec {
+  const n = NICE[v], vd = VERDICT[d.verdict];
+  return {
+    filename: `trend-detective-${info.id.replace(/[^a-z0-9-]+/gi, "-")}-${v}`,
+    header: ["year", `${v} (${n.units}, yearly mean)`, `${v} with El Niño removed (${n.units})`],
+    rows: d.annual.map((x: number, i: number) => [meta.years[i], x, +(x - d.enso_coef * meta.enso_annual[i]).toPrecision(5)]),
+    notes: [info.custom ? `${n.short} ${inPlace(info)} (${info.blurb} Place outline: OpenStreetMap contributors, via Nominatim.)` : `${n.short} ${inPlace(info)} (${info.name}; box ${info.box.join(", ")} as lat min, lat max, lon min, lon max)`,
+      "Source: NASA GMAO MERRA-2 monthly reanalysis via NASA GES DISC; yearly means of the monthly values.",
+      "El Niño removed: the yearly value minus its fitted response to the NOAA CPC detrended Niño 3.4 index (trend + index regression)."],
+    summary: [
+      ["variable", `${n.short} (${v})`], ["units", n.units],
+      ["theil_sen_slope_per_decade", d.slope_decade], ["slope_95ci_per_decade", `${d.ci_decade[0]} to ${d.ci_decade[1]}`],
+      ["mann_kendall_p", d.p_naive], ["mann_kendall_p_hamed_rao", d.p_hr], ["fdr_adjusted_p_q", d.q],
+      ["passed_luck_test", d.p_perm < 0.05 ? `yes (p ${d.p_perm}, 2,000 shuffles)` : `no (p ${d.p_perm}, 2,000 shuffles)`],
+      ["verdict", vd.label], ["data_source", "NASA GMAO MERRA-2 monthly reanalysis (M2TMNX*, v5.12.4) via NASA GES DISC"],
+    ],
+  };
+}
+
 function QuestionStep({ meta, placeId, placeName: knownName, v, ask, startDemo, note }: {
   meta: Meta; placeId: string; placeName?: string; v: string; ask: (place: string, v: string) => void;
   startDemo: (x: (typeof DEMOS)[number]) => void; note?: string;
@@ -433,6 +453,7 @@ function DataStep({ meta, info, v, d }: { meta: Meta; info: Region; v: string; d
           {ensoOn && ` El Niño (a natural Pacific Ocean cycle) removed: the trend is ${signed(d.slope_enso_decade)} ${n.units} per decade instead of ${signed(d.slope_decade)} (corrected p ${pfmt(d.p_enso_hr)}).`}
         </p>
       </Card>
+      <div className="mt-4"><button type="button" className="pill" onClick={() => downloadCsv(caseCsv(meta, info, v, d))}>Download data (CSV)</button></div>
       {showCheck && check && <GroundCheck check={check} />}
     </section>
   );
@@ -585,7 +606,8 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
                     : <>{cap(placeName(info))} is moving in the opposite direction from Earth as a whole.</>}
                 {info.id === "arctic" && v === "T2M" && meta.sanity?.matched && (
                   <> Scientists call this <b className="font-normal text-[var(--ink)]">Arctic amplification</b>. One big reason: melting ice and snow uncover darker ground and water that soak up more sunlight.
-                    A 2022 study using observations found about 3.8 times for 1979–2021; our NASA data gives {fmt(meta.sanity.matched.ratio, 2)} times for nearly the same years (1980–2021), within the range different data sets give.</>
+                    Our NASA MERRA-2 data gives about {fmt(meta.sanity.ratio, 2)} times for 1980–2025 ({fmt(meta.sanity.matched.ratio, 2)} times for 1980–2021). Rantanen et al. (2022) found about 3.8 times from observations for 1979–2021.
+                    Reanalyses like MERRA-2 disagree with each other on Arctic trends, so a somewhat lower ratio here is expected.</>
                 )}
               </p>
             </Card>
@@ -617,12 +639,7 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
           ))}
         </dl>
       </details>
-      <ShareTools title={`${n.short} ${inPlace(info)}, ${meta.years[0]}–${meta.years.at(-1)}: ${vd.label}`} filename={`trend-detective-${info.id.replace(/[^a-z0-9-]+/gi, "-")}-${v}`}
-        header={["year", `${v} (${n.units}, yearly mean)`, "trend line (Sen's slope)"]}
-        rows={d.annual.map((x: number, i: number) => [meta.years[i], x, +(d.intercept + (d.slope_decade / 10) * i).toPrecision(5)])}
-        notes={[info.custom ? `${n.short} ${inPlace(info)} (${info.blurb} Place outline: OpenStreetMap contributors, via Nominatim.)` : `${n.short} ${inPlace(info)} (${info.name}; box ${info.box.join(", ")} as lat min, lat max, lon min, lon max)`,
-          "Source: NASA GMAO MERRA-2 monthly reanalysis via NASA GES DISC; yearly means of the monthly values.",
-          `Sen's slope ${d.slope_decade} ${n.units} per decade (95% range ${d.ci_decade[0]} to ${d.ci_decade[1]}); Mann-Kendall p ${d.p_naive}; Hamed-Rao p ${d.p_hr}; false-alarm rate q ${d.q}; verdict: ${vd.label}`]} />
+      <ShareTools title={`${n.short} ${inPlace(info)}, ${meta.years[0]}–${meta.years.at(-1)}: ${vd.label}`} {...caseCsv(meta, info, v, d)} />
       <p className="text-sm text-[var(--ink-dim)]">Want the whole planet? <Link href={`/globe?v=${v}`}>Open the globe for {n.noun}</Link>.</p>
     </section>
   );
