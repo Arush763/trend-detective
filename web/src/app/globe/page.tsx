@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { DEMOS, NICE, VERDICT, fmt, get, pfmt, signed, type Grid, type Meta } from "@/lib/data";
 import { GlobeScale, cellAt, coast, flatMap, type Mode, type Pick } from "@/components/Globe";
@@ -43,6 +43,8 @@ function RollCount({ value, run }: { value: number; run: boolean }) {
 let flatCache: boolean | null = null;
 const wantFlat = () => (flatCache ??= (() => { const cv = document.createElement("canvas"); return !(cv.getContext("webgl2") || cv.getContext("webgl")) || reducedMotion(); })());
 const noSubscribe = () => () => {};
+// Whether the page was opened to play the tour (?tour=1): known before any data arrives.
+const tourInAddress = () => new URLSearchParams(window.location.search).has("tour");
 
 /** Colour key for the year scrubber. */
 function YearKey({ year }: { year: number }) {
@@ -87,6 +89,7 @@ export default function GlobePage() {
   const [pick, setPick] = useState<Pick | null>(null);
   const [place, setPlace] = useState<Target | null>(null);
   const flat = useSyncExternalStore(noSubscribe, wantFlat, () => false);
+  const tourAsked = useSyncExternalStore(noSubscribe, tourInAddress, () => false);
   const [err, setErr] = useState("");
   const [anom, setAnom] = useState<Anom | null>(null);
   const [yearIdx, setYearIdx] = useState<number | null>(null);
@@ -169,13 +172,37 @@ export default function GlobePage() {
 
 
   // Guided tour, "Watch the investigation": about 30 s that drives the features above on a timer (no new visuals).
-  // Esc or any click stops it and leaves the page as it is. Under reduced motion the flat map is shown, so steps cut.
+  // It waits for the globe's columns (up to 20 s), then runs. Esc or any click stops it; ending or stopping puts back the
+  // page as it was before (variable, step, El Niño, place, year, and the exact address). Under reduced motion the flat
+  // map is shown, so steps cut instead of flying.
   type Caption = { n: number; eyebrow: string; text: string; final?: [string, string][] };
+  type Snapshot = { v: string; mode: Mode; enso: boolean; pick: Pick | null; place: Target | null; yearIdx: number | null; url: string };
   const [tour, setTour] = useState<Caption | null>(null);
+  const [pending, setPending] = useState(false);
+  const [built, setBuilt] = useState(false);
   const timers = useRef<number[]>([]);
   const autoTried = useRef(false);
-  const startTour = async () => {
-    if (!meta) return;
+  const snap = useRef<Snapshot | null>(null);
+  const running = useRef(false);
+  const restoreUrl = useRef<string | null>(null);
+  const endTour = useCallback(() => {
+    timers.current.forEach((t) => window.clearTimeout(t)); timers.current = [];
+    running.current = false;
+    setTour(null); setPending(false);
+    const s0 = snap.current;
+    snap.current = null;
+    if (!s0) return;
+    setV(s0.v); setMode(s0.mode); setEnso(s0.enso); setPick(s0.pick); setPlace(s0.place); setPlaying(false); setYearIdx(s0.yearIdx);
+    restoreUrl.current = s0.url;
+  }, []);
+  const requestTour = () => {
+    if (!meta || tour || pending) return;
+    snap.current = { v, mode, enso, pick, place, yearIdx, url: window.location.pathname + window.location.search };
+    setPending(true);
+  };
+  const runTour = async () => {
+    if (!meta || running.current) return;
+    running.current = true;
     timers.current.forEach((t) => window.clearTimeout(t)); timers.current = [];
     stopYears(); setPick(null); setPlace(null); setEnso(false); setMode("naive");
     if (v !== "T2M") choose("T2M");
@@ -193,30 +220,41 @@ export default function GlobePage() {
       [27500, "Verdict", "Real signal, not noise", () => {}, [
         [n0(S.naive_sig), "looked like trends"], [n0(S.noise_sig), "were luck"], [n0(S.enso_real_sig), "passed the strict test, El Niño removed"]]],
     ];
-    steps.forEach(([at, eyebrow, text, run, final], n) => timers.current.push(window.setTimeout(() => { run(); setTour({ n, eyebrow, text, final }); }, at)));
+    // "Waiting" ends in the same update as the first caption, so there is never a moment that looks like no tour.
+    steps.forEach(([at, eyebrow, text, run, final], n) => timers.current.push(window.setTimeout(() => { run(); setTour({ n, eyebrow, text, final }); if (n === 0) setPending(false); }, at)));
+    timers.current.push(window.setTimeout(endTour, 27500 + 7000)); // the verdict card stays 7 s, then the page is put back
   };
-  const touring = !!tour;
+  // Start once the globe is on screen: its first frame with columns (the flat map needs only the data). 20 s at most.
+  const globeReady = flat ? !!g : built;
+  useEffect(() => {
+    if (!pending) return;
+    const id = window.setTimeout(() => { runTour(); }, globeReady ? 400 : 20000);
+    return () => window.clearTimeout(id);
+    // runTour is recreated every render; what matters is pending and readiness.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, globeReady]);
+  const touring = !!tour || pending;
   useEffect(() => {
     if (!touring) return;
     const stop = (e: Event) => {
       if (e instanceof KeyboardEvent && e.key !== "Escape") return;
-      timers.current.forEach((t) => window.clearTimeout(t)); timers.current = []; setTour(null);
+      endTour();
     };
     window.addEventListener("keydown", stop);
     window.addEventListener("pointerdown", stop, true);
     return () => { window.removeEventListener("keydown", stop); window.removeEventListener("pointerdown", stop, true); };
-  }, [touring]);
+  }, [touring, endTour]);
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
-  // /globe?tour=1 (the home page button) starts the tour once the data is in.
+  // /globe?tour=1 (the home page button) asks for the tour as soon as the data is in; it then waits for the globe.
   const haveGrid = !!g;
   useEffect(() => {
-    if (autoTried.current || !meta || !haveGrid || !initial.current?.has("tour")) return;
+    if (autoTried.current || !meta || !initial.current?.has("tour")) return;
     autoTried.current = true;
-    const id = window.setTimeout(() => { startTour(); }, 900);
+    const id = window.setTimeout(() => { requestTour(); }, 0);
     return () => window.clearTimeout(id);
-    // startTour is recreated every render; this runs once, when the data first arrives.
+    // requestTour is recreated every render; this runs once, when the data first arrives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, haveGrid]);
+  }, [meta]);
 
   // Keep the address in step with what's on screen (replace, not push: Back isn't flooded), and restore it on load.
   // Nothing is written until the restore has run, so a shared link's region and year aren't dropped on the way in.
@@ -224,7 +262,8 @@ export default function GlobePage() {
   const yearVal = yearIdx != null && anom ? anom.years[yearIdx] : null;
   const [restoring, setRestoring] = useState(true);
   useEffect(() => {
-    if (!meta || restoring) return;
+    if (!meta || restoring || touring) return;
+    if (restoreUrl.current) { window.history.replaceState(window.history.state, "", restoreUrl.current); restoreUrl.current = null; return; }
     const q = new URLSearchParams({ v });
     if (placeVal) q.set("region", placeVal);
     if (enso) q.set("enso", "1");
@@ -233,7 +272,7 @@ export default function GlobePage() {
     // history.replaceState (Next keeps its router in sync with it): replaces like router.replace, but synchronously, so two
     // quick updates (restoring a region, then a year) can't race and leave the older address behind.
     if (url !== window.location.pathname + window.location.search) window.history.replaceState(window.history.state, "", url);
-  }, [meta, restoring, v, placeVal, enso, yearVal]);
+  }, [meta, restoring, touring, v, placeVal, enso, yearVal]);
   const restored = useRef(false);
   useEffect(() => {
     if (restored.current || !meta || !haveGrid) return;
@@ -256,8 +295,9 @@ export default function GlobePage() {
   // 12,960 = the 90 x 144 map grid (its size, not a result).
   if (!meta) return (
     <div className="-mt-24">
-      <section className="bleed relative flex h-[100svh] min-h-[560px] items-center justify-center" aria-label="The globe">
+      <section className="bleed relative flex h-[100svh] min-h-[560px] flex-col items-center justify-center gap-2" aria-label="The globe">
         <p role="status" className="hud nav-glass flex items-center gap-2 rounded-full px-4 py-2 !text-[var(--ink)]"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--ink)] motion-safe:animate-pulse" />Loading 12,960 places…</p>
+        {tourAsked && <p className="hud !text-[11px]">Starting the investigation…</p>}
       </section>
     </div>
   );
@@ -271,6 +311,7 @@ export default function GlobePage() {
         {flat
           ? <FlatFallback grid={g} mode={mode} enso={enso} onPick={pickCell} loading={`Loading ${n0(s.cells)} places…`} />
           : <ColumnGlobe grid={g} lat={meta.grid.lat} lon={meta.grid.lon} mode={mode} enso={enso} year={year} target={target} onPick={pickCell} loading={`Loading ${n0(s.cells)} places…`}
+              loadingNote={pending ? "Starting the investigation…" : undefined} onBuilt={() => setBuilt(true)}
               label={`Globe of ${NICE[v].short} trends as columns: ${active.step}. ${n0(count(mode))} of ${n0(s.cells)} places marked. Click a square, or use "Fly to", for its numbers.`} />}
 
         {/* Top: what to map, and where to fly. Sticky, so it stays clear of the header even if the page scrolls. */}
@@ -281,7 +322,7 @@ export default function GlobePage() {
               <h1 className="font-display text-[clamp(26px,3.4vw,44px)] leading-[1] tracking-[-0.02em] text-ink">Signal or noise?</h1>
             </div>
             <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
-            <button type="button" onClick={() => { startTour(); }} className="pill nav-glass shrink-0 !text-[var(--ink)]">▶ Watch the investigation</button>
+            <button type="button" onClick={requestTour} className="pill nav-glass shrink-0 !text-[var(--ink)]">▶ Watch the investigation</button>
             <button type="button" onClick={copyLink} className="pill nav-glass shrink-0" aria-live="polite">{copied ? "Copied" : "Copy link"}</button>
             <label className="flex min-w-0 max-w-full items-center gap-2"><span className="hud hidden sm:inline">Fly to</span>
               <select className="nav-glass hud h-11 w-56 max-w-full cursor-pointer rounded-full px-4 text-ink" defaultValue=""
@@ -359,7 +400,7 @@ export default function GlobePage() {
           {tour && !tour.final && (
             <motion.div key={tour.n} role="status" aria-live="polite" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6, transition: { duration: 0.2 } }}
               transition={{ duration: 0.4, ease: [0.35, 0, 0, 1] }}
-              className="nav-glass absolute inset-x-4 bottom-[132px] z-20 flex flex-col gap-1 rounded-[var(--radius-sm)] px-5 py-4 sm:bottom-6 sm:left-[408px] sm:right-6 lg:right-[460px]">
+              className="absolute inset-x-4 bottom-4 z-30 flex flex-col gap-1 rounded-[var(--radius-sm)] border border-hairline bg-[color-mix(in_srgb,var(--ground)_97%,transparent)] px-5 py-4 shadow-[0_20px_60px_rgba(0,0,0,0.45)] min-[1100px]:bottom-6 min-[1100px]:left-[408px] min-[1100px]:right-[460px] min-[1100px]:z-20 min-[1100px]:border-[var(--hairline)] min-[1100px]:shadow-none">
               <span className="hud">The investigation · {tour.n + 1} / 7 · {tour.eyebrow}</span>
               <span className="font-display text-[20px] leading-[26px] text-ink sm:text-[24px] sm:leading-[30px]">{tour.text}</span>
               <span className="hud !text-[10px] !text-ink-faint">Esc or click to stop</span>
