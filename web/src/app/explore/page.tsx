@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { DEMOS, NICE, TYPE_LABEL, VERDICT, cap, checks, fmt, get, pfmt, headline, inPlace, placeName, signed, type Grid, type Meta, type Region } from "@/lib/data";
+import { DEMOS, NICE, TYPE_LABEL, VERDICT, WF, cap, checks, fmt, get, pfmt, headline, inPlace, placeName, signed, type Grid, type Meta, type Region } from "@/lib/data";
 import { TrendChart } from "@/components/TrendChart";
 import { Badge, Brackets, Button, Card, Hud, SectionLabel, VerdictStamp } from "@/components/ui";
 import { Globe, GlobeScale, cellAt, trendToneCss, type Pick } from "@/components/Globe";
@@ -580,6 +580,15 @@ function VerdictStep({ meta, info, v, d, globalR, go }: { meta: Meta; info: Regi
                 <Badge tone={c.pass == null ? "na" : c.pass ? "pass" : "fail"}>{c.pass == null ? "n/a" : c.pass ? "Passed" : "Not passed"}</Badge>
               </button>
             ))}
+          </Card>
+          <Card className="flex flex-col gap-2">
+            <SectionLabel>DID THE PAST PREDICT THE FUTURE?</SectionLabel><h2 className="sr-only">Did the past predict the future?</h2>
+            <p className="text-[15px] leading-relaxed text-[var(--ink-dim)]">
+              Found in {d.walk_forward.first.years[0]}–{d.walk_forward.first.years[1]}: <b className="font-normal text-[var(--ink)]">{signed(d.walk_forward.first.slope_decade)} {n.units}</b> per decade (p {pfmt(d.walk_forward.first.p)}).
+              {" "}Checked on {d.walk_forward.second.years[0]}–{d.walk_forward.second.years[1]}, data that first test never saw: <b className="font-normal text-[var(--ink)]">{signed(d.walk_forward.second.slope_decade)} {n.units}</b> per decade (p {pfmt(d.walk_forward.second.p)}).
+              {" "}<b className="font-normal text-[var(--ink)]">{WF[d.walk_forward.code].label}.</b>
+            </p>
+            <p className="text-[13px] text-[var(--ink-dim)]">Like backtesting a trading strategy: find the trend on old data, then check it on data it never saw.</p>
           </Card>
           {d.verdict === "possible" && d.years_more != null && (
             <Card className="border-dashed text-[15px] leading-relaxed text-[var(--ink-dim)]">

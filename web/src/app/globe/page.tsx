@@ -60,6 +60,25 @@ function YearKey({ year }: { year: number }) {
   );
 }
 
+/** Legend for the out-of-sample mode, in the same monochrome scheme as the columns. */
+function OosKey() {
+  const sw = (up: boolean, a: number, tall: boolean) => (
+    <span aria-hidden="true" className="inline-block w-2.5 shrink-0 rounded-sm align-bottom"
+      style={{ height: tall ? 14 : 7, background: `color-mix(in srgb, ${up ? "#f5f5f2" : "#6b7280"} ${a * 100}%, #141415)` }} />
+  );
+  const rows: [boolean, number, boolean, string][] = [[true, 1, true, "Held up: same direction after 2002"], [false, 1, true, "Reversed: both halves real, opposite ways"],
+    [false, 0.7, false, "Faded: real before 2003, gone after"], [true, 0.4, false, "New: only appears after 2002"]];
+  return (
+    <div className="flex w-full flex-col gap-2 text-[13px] text-ink-dim">
+      <span className="hud">Out-of-sample check · 1980–2002 → 2003–2025</span>
+      <ul className="m-0 grid list-none grid-cols-1 gap-1.5 p-0 sm:grid-cols-2">
+        {rows.map(([up, a, tall, t]) => <li key={t} className="flex items-end gap-2">{sw(up, a, tall)}<span>{t}</span></li>)}
+      </ul>
+      <p className="text-[12px]">No column: no trend in either half. Same walk-forward test as check 4 on every case page.</p>
+    </div>
+  );
+}
+
 type Anom = { a: Int8Array; years: number[]; step: number; nodata: number; nCells: number };
 
 /** Readable 2D map of the same step, for devices without WebGL or visitors who ask for reduced motion. Click a square for its numbers. */
@@ -94,6 +113,7 @@ export default function GlobePage() {
   const [anom, setAnom] = useState<Anom | null>(null);
   const [yearIdx, setYearIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [oos, setOos] = useState(false); // colour by the out-of-sample (walk-forward) check
 
   // Shareable links: ?v=&region=&enso=1&year= . The address is read once, when the page opens.
   const initial = useRef<URLSearchParams | null>(null);
@@ -176,7 +196,7 @@ export default function GlobePage() {
   // page as it was before (variable, step, El Niño, place, year, and the exact address). Under reduced motion the flat
   // map is shown, so steps cut instead of flying.
   type Caption = { n: number; eyebrow: string; text: string; final?: [string, string][] };
-  type Snapshot = { v: string; mode: Mode; enso: boolean; pick: Pick | null; place: Target | null; yearIdx: number | null; url: string };
+  type Snapshot = { v: string; mode: Mode; enso: boolean; pick: Pick | null; place: Target | null; yearIdx: number | null; url: string; oos: boolean };
   const [tour, setTour] = useState<Caption | null>(null);
   const [pending, setPending] = useState(false);
   const [built, setBuilt] = useState(false);
@@ -192,7 +212,7 @@ export default function GlobePage() {
     const s0 = snap.current;
     snap.current = null;
     if (!s0) return;
-    setV(s0.v); setMode(s0.mode); setEnso(s0.enso); setPick(s0.pick); setPlace(s0.place); setPlaying(false); setYearIdx(s0.yearIdx);
+    setV(s0.v); setMode(s0.mode); setEnso(s0.enso); setPick(s0.pick); setPlace(s0.place); setPlaying(false); setYearIdx(s0.yearIdx); setOos(s0.oos);
     restoreUrl.current = s0.url;
   }, []);
   const requestTour = () => {
@@ -200,14 +220,14 @@ export default function GlobePage() {
     // The address to put back afterwards: as it was, minus ?tour=1, so a reload doesn't replay the tour.
     const q = new URLSearchParams(window.location.search);
     q.delete("tour");
-    snap.current = { v, mode, enso, pick, place, yearIdx, url: window.location.pathname + (q.size ? `?${q}` : "") };
+    snap.current = { v, mode, enso, pick, place, yearIdx, url: window.location.pathname + (q.size ? `?${q}` : ""), oos };
     setPending(true);
   };
   const runTour = async () => {
     if (!meta || running.current) return;
     running.current = true;
     timers.current.forEach((t) => window.clearTimeout(t)); timers.current = [];
-    stopYears(); setPick(null); setPlace(null); setEnso(false); setMode("naive");
+    stopYears(); setOos(false); setPick(null); setPlace(null); setEnso(false); setMode("naive");
     if (v !== "T2M") choose("T2M");
     const S = meta.grid_summary.T2M, r = (await get("regions/arctic.json")).variables.T2M;
     const steps: [number, string, string, () => void, [string, string][]?][] = [
@@ -313,7 +333,7 @@ export default function GlobePage() {
       <section className="bleed relative h-[100svh] min-h-[560px] overflow-clip" aria-label="The globe">
         {flat
           ? <FlatFallback grid={g} mode={mode} enso={enso} onPick={pickCell} loading={`Loading ${n0(s.cells)} places…`} />
-          : <ColumnGlobe grid={g} lat={meta.grid.lat} lon={meta.grid.lon} mode={mode} enso={enso} year={year} target={target} onPick={pickCell} loading={`Loading ${n0(s.cells)} places…`}
+          : <ColumnGlobe grid={g} lat={meta.grid.lat} lon={meta.grid.lon} mode={mode} enso={enso} year={year} oos={oos} target={target} onPick={pickCell} loading={`Loading ${n0(s.cells)} places…`}
               loadingNote={pending ? "Starting the investigation…" : undefined} onBuilt={() => setBuilt(true)}
               label={`Globe of ${NICE[v].short} trends as columns: ${active.step}. ${n0(count(mode))} of ${n0(s.cells)} places marked. Click a square, or use "Fly to", for its numbers.`} />}
 
@@ -349,15 +369,21 @@ export default function GlobePage() {
 
         {/* Bottom left: the three steps */}
         <div className="absolute inset-x-4 bottom-4 z-10 flex flex-col gap-2 sm:inset-x-auto sm:left-6 sm:bottom-6 sm:w-[360px]" role="group" aria-label="Which test to show">
+          {!flat && (
+            <div className="flex gap-2" role="group" aria-label="Colour by">
+              <button type="button" className="pill nav-glass !min-h-9 flex-1 !px-3 !text-[12px]" aria-pressed={!oos} onClick={() => setOos(false)}>Trend strength</button>
+              <button type="button" className="pill nav-glass !min-h-9 flex-1 !px-3 !text-[12px]" aria-pressed={oos} onClick={() => { stopYears(); setOos(true); }}>Out-of-sample check</button>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-1">
             {STEPS.map((st) => {
               const on = st.mode === mode;
               return (
-                <button key={st.mode} type="button" aria-pressed={on && !yearOn} aria-describedby={`desc-${st.mode}`} onClick={() => { stopYears(); setMode(st.mode); }}
+                <button key={st.mode} type="button" aria-pressed={on && !yearOn && !oos} aria-describedby={`desc-${st.mode}`} onClick={() => { stopYears(); setOos(false); setMode(st.mode); }}
                   className="nav-glass relative flex cursor-pointer flex-col gap-1 rounded-[var(--radius-sm)] px-3 py-2.5 text-left text-ink transition-colors sm:gap-1.5 sm:px-4 sm:py-3"
-                  style={{ borderColor: on && !yearOn ? st.color : undefined }}>
-                  {on && !yearOn && <Brackets layoutId="globe-steps" className="!-inset-0.5" />}
-                  <span className="hud !text-[10px] sm:!text-[12px]" style={{ color: on && !yearOn ? st.color : "var(--ink-dim)" }}><span className="sm:hidden">{st.short}</span><span className="hidden sm:inline">{st.step}</span></span>
+                  style={{ borderColor: on && !yearOn && !oos ? st.color : undefined }}>
+                  {on && !yearOn && !oos && <Brackets layoutId="globe-steps" className="!-inset-0.5" />}
+                  <span className="hud !text-[10px] sm:!text-[12px]" style={{ color: on && !yearOn && !oos ? st.color : "var(--ink-dim)" }}><span className="sm:hidden">{st.short}</span><span className="hidden sm:inline">{st.step}</span></span>
                   <span className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
                     <span className="num font-mono text-[20px] leading-none sm:text-[28px]" style={{ color: st.color }}><RollCount value={count(st.mode)} run={on} /></span>
                     <span className="hidden text-[13px] text-ink-dim sm:inline">{st.noun}</span>
@@ -375,7 +401,22 @@ export default function GlobePage() {
         </div>
 
         {/* Bottom centre (above the steps on phones): play the record year by year. Air temperature only. */}
-        {!flat && v === "T2M" && !tour && (
+        {/* Out-of-sample headline: in the player's place while that mode is on. */}
+        {!flat && oos && !tour && g && (() => {
+          const n = [0, 0, 0, 0, 0, 0];
+          for (const c of g.wf as (number | null)[]) if (c != null) n[c]++;
+          const found = n[2] + n[3] + n[4] + n[5], held = n[2] + n[3];
+          return (
+            <div role="status" className="nav-glass absolute inset-x-4 bottom-[132px] z-10 flex flex-col gap-1 rounded-[var(--radius-sm)] px-5 py-3 sm:bottom-6 sm:left-[408px] sm:right-6 lg:right-[460px]">
+              <span className="hud">Did the past predict the future? · {NICE[v].short}</span>
+              <span className="font-display text-[18px] leading-[24px] text-ink sm:text-[22px] sm:leading-[28px]">
+                <span className="num">{found ? Math.round((100 * held) / found) : 0}%</span> of trends found in 1980–2002 continued in 2003–2025.
+              </span>
+              <span className="text-[13px] text-ink-dim">Like backtesting a trading strategy: find the trend on old data, then check it on data it never saw. ({n0(held)} of {n0(found)} squares.)</span>
+            </div>
+          );
+        })()}
+        {!flat && v === "T2M" && !tour && !oos && (
           <div className="nav-glass absolute inset-x-4 bottom-[132px] z-10 flex items-center gap-3 rounded-full px-3 py-1.5 sm:bottom-6 sm:left-[408px] sm:right-auto sm:w-[min(440px,calc(100vw-440px))] lg:right-[460px] lg:w-auto">
             {yearIdx == null || !anom ? (
               <button type="button" onClick={startYears} className="hud flex min-h-11 w-full items-center justify-center gap-2 !text-ink">▶ Play the years 1980–2025</button>
@@ -395,7 +436,7 @@ export default function GlobePage() {
         {/* Bottom right: the colour key (below the globe on phones) */}
         {!flat && (
           <div className="nav-glass absolute bottom-6 right-6 z-10 hidden w-[420px] rounded-[var(--radius-sm)] p-4 lg:block">
-            {yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}
+            {oos ? <OosKey /> : yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}
           </div>
         )}
         {/* Tour captions: bottom, glass, design-system easing; the last one is a centred verdict card. */}
@@ -430,7 +471,7 @@ export default function GlobePage() {
       </section>
 
       <div className="flex flex-col gap-6">
-        <div className={flat ? "" : "lg:hidden"}>{yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}</div>
+        <div className={flat ? "" : "lg:hidden"}>{oos && !flat ? <OosKey /> : yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}</div>
         <p className="hud text-ink-dim">Drag to spin · pinch or scroll to zoom · tap or click a square · each column is one square, its height the size of the trend</p>
         <CellInfo meta={meta} grid={g} v={v} pick={pick} mode={mode} enso={enso} onClose={() => setPick(null)} />
         <AnimatePresence mode="wait">

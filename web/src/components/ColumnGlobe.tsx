@@ -65,6 +65,28 @@ const baseTexture = () => (baseTex ??= coast().then((p) => {
 }));
 
 type Cols = { mesh: any; cells: number[]; h0: Float32Array; h1: Float32Array; c0: Float32Array; c1: Float32Array; delay: Float32Array; t0: number; ms: number; s: number };
+/** Walk-forward (stats.walk_forward, 1980–2002 found, 2003–2025 checked) per square, as [height, colour] in the
+ * monochrome scheme: held up (confirmed / continuing) = tall white, reversed = tall grey, faded = short grey,
+ * new after 2002 (emerging) = short dim white, no signal = no column. Exported for the legend. */
+export const OOS: Record<number, { label: string; h: number; up: boolean; a: number } | null> = {
+  0: null,
+  1: { label: "New after 2002", h: 3, up: true, a: 0.4 },
+  2: { label: "Held up", h: 9, up: true, a: 1 },
+  3: { label: "Held up", h: 9, up: true, a: 1 },
+  4: { label: "Reversed", h: 9, up: false, a: 1 },
+  5: { label: "Faded", h: 3, up: false, a: 0.7 },
+};
+function oosTargets(grid: Grid, cells: number[]) {
+  const n = cells.length, h = new Float32Array(n), c = new Float32Array(n * 3);
+  cells.forEach((k, i) => {
+    const o = OOS[grid.wf[k] as number];
+    if (!o) return;
+    h[i] = o.h;
+    c.set(over(o.up ? UP : DOWN, o.a), i * 3);
+  });
+  return { h, c };
+}
+
 /** One year of the T2M anomaly record (°C vs each square's own 1980–2025 mean), for the year scrubber. */
 export type YearView = { a: Int8Array; idx: number; step: number; nodata: number; nCells: number };
 const YEAR_MS = 280;
@@ -104,8 +126,10 @@ function targets(grid: Grid, cells: number[], mode: Mode, enso: boolean) {
 const ringCol = () => (t: number) => `rgba(197,138,214,${1 - t})`; // accent: the selected place
 const easeIO = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 
-export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, onPick, label, loading = "Loading…", loadingNote, onBuilt }: {
+export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, oos = false, target, onPick, label, loading = "Loading…", loadingNote, onBuilt }: {
   grid: Grid | null; lat: number[]; lon: number[]; mode: Mode; enso: boolean; year?: YearView | null; target: Target | null;
+  /** Colour by the out-of-sample (walk-forward) check instead of the step. */
+  oos?: boolean;
   /** Shown until the first columns are on screen (the 3D engine and textures take a few seconds on a slow connection). */
   loading?: string;
   /** A second, smaller line under the loading status (e.g. "Starting the investigation…"). */
@@ -127,7 +151,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
   useEffect(() => { onBuiltRef.current = onBuilt; });
   const cols = useRef<Cols | null>(null);
   const uT = useRef({ value: 1 }), uS = useRef({ value: STAGGER });
-  const prev = useRef<{ mode: Mode; enso: boolean; v: string; year: number | null } | null>(null);
+  const prev = useRef<{ mode: Mode; enso: boolean; v: string; year: number | null; oos: boolean } | null>(null);
   const targetRef = useRef<Target | null>(target);
   const spin = useRef<{ apply: () => void; cleanup: () => void } | null>(null);
   const [arrived, setArrived] = useState<string | null>(null);
@@ -150,7 +174,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
     const g = globe.current;
     if (!ready || !g || !grid) return;
     const scene = g.scene();
-    const key = { mode, enso, v: grid.var, year: year ? year.idx : null };
+    const key = { mode, enso, v: grid.var, year: year ? year.idx : null, oos };
     let c = cols.current;
     const now = performance.now();
     // Where every column is right now (an interrupted rise continues from where it was).
@@ -188,11 +212,11 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
     }
     // A year from the scrubber (T2M only) replaces the step picture; years change quickly and all at once.
     const useYear = !!year && grid.var === "T2M";
-    const { h, c: col } = useYear ? yearTargets(year!, c.cells) : targets(grid, c.cells, mode, enso);
-    const quick = useYear && prev.current?.year != null;
+    const { h, c: col } = oos ? oosTargets(grid, c.cells) : useYear ? yearTargets(year!, c.cells) : targets(grid, c.cells, mode, enso);
+    const quick = !oos && useYear && prev.current?.year != null;
     c.ms = quick ? YEAR_MS : RISE_MS; c.s = quick ? 0 : STAGGER; uS.current.value = c.s;
     // Luck test → strict test: false alarms that don't survive vanish at once and become dust.
-    const dissolve = !useYear && prev.current?.year == null && prev.current?.mode === "noise" && mode === "real" && prev.current.v === grid.var && !reducedMotion();
+    const dissolve = !oos && !prev.current?.oos && !useYear && prev.current?.year == null && prev.current?.mode === "noise" && mode === "real" && prev.current.v === grid.var && !reducedMotion();
     const gone: number[] = [];
     if (dissolve) c.cells.forEach((k, i) => { if (grid.p_noise[k] < 0.05 && h[i] === 0) { gone.push(i); c!.h0[i] = 0; } });
     c.h1.set(h); c.c1.set(col);
@@ -244,7 +268,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
       disposeDust = () => { cancelAnimationFrame(draf); scene.remove(dust); geo.dispose(); mat.dispose(); disposeDust = () => {}; };
     }
     return () => { cancelAnimationFrame(raf); disposeDust(); };
-  }, [ready, grid, mode, enso, lat, lon, year]);
+  }, [ready, grid, mode, enso, lat, lon, year, oos]);
 
   // Fly to the picked place, pulse a ring there, then draw the HUD leader line.
   useEffect(() => {
