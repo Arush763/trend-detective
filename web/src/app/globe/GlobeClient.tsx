@@ -381,35 +381,35 @@ export default function GlobePage() {
               </button>
             ))}
           </div>
+          {!flat && (
+            <div className="pointer-events-auto flex flex-wrap gap-2" role="group" aria-label="Colour by">
+              <button type="button" className="pill nav-glass !min-h-9 !px-3 !text-[12px]" aria-pressed={!oos} onClick={() => setOos(false)}>Trend strength</button>
+              <button type="button" className="pill nav-glass !min-h-9 !px-3 !text-[12px]" aria-pressed={oos} onClick={() => { stopYears(); setOos(true); }}>Out-of-sample check</button>
+            </div>
+          )}
         </div>
 
         {/* Bottom left: the three steps */}
-        <div className="absolute inset-x-4 bottom-4 z-10 flex flex-col gap-2 sm:inset-x-auto sm:left-6 sm:bottom-6 sm:w-[360px]" role="group" aria-label="Which test to show">
-          {!flat && (
-            <div className="flex gap-2" role="group" aria-label="Colour by">
-              <button type="button" className="pill nav-glass !min-h-9 flex-1 !px-3 !text-[12px]" aria-pressed={!oos} onClick={() => setOos(false)}>Trend strength</button>
-              <button type="button" className="pill nav-glass !min-h-9 flex-1 !px-3 !text-[12px]" aria-pressed={oos} onClick={() => { stopYears(); setOos(true); }}>Out-of-sample check</button>
-            </div>
-          )}
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-1">
+        <div className="absolute inset-x-4 bottom-4 z-10 flex flex-col gap-2 min-[1100px]:inset-x-auto min-[1100px]:left-6 min-[1100px]:bottom-6 min-[1100px]:w-[360px]" role="group" aria-label="Which test to show">
+          <div className="grid grid-cols-3 gap-2 min-[1100px]:grid-cols-1">
             {STEPS.map((st) => {
               const on = st.mode === mode;
               return (
                 <button key={st.mode} type="button" aria-pressed={on && !yearOn && !oos} aria-describedby={`desc-${st.mode}`} onClick={() => { stopYears(); setOos(false); setMode(st.mode); }}
-                  className="nav-glass relative flex cursor-pointer flex-col gap-1 rounded-[var(--radius-sm)] px-3 py-2.5 text-left text-ink transition-colors sm:gap-1.5 sm:px-4 sm:py-3"
+                  className="nav-glass relative flex cursor-pointer flex-col gap-1 rounded-[var(--radius-sm)] px-3 py-2.5 text-left text-ink transition-colors min-[1100px]:gap-1.5 min-[1100px]:px-4 min-[1100px]:py-3 [@media(max-height:720px)]:!py-2"
                   style={{ borderColor: on && !yearOn && !oos ? st.color : undefined }}>
                   {on && !yearOn && !oos && <Brackets layoutId="globe-steps" className="!-inset-0.5" />}
-                  <span className="hud !text-[10px] sm:!text-[12px]" style={{ color: on && !yearOn && !oos ? st.color : "var(--ink-dim)" }}><span className="sm:hidden">{st.short}</span><span className="hidden sm:inline">{st.step}</span></span>
-                  <span className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                    <span className="num font-mono text-[20px] leading-none sm:text-[28px]" style={{ color: st.color }}><RollCount value={count(st.mode)} run={on} /></span>
-                    <span className="hidden text-[13px] text-ink-dim sm:inline">{st.noun}</span>
+                  <span className="hud !text-[10px] min-[1100px]:!text-[12px]" style={{ color: on && !yearOn && !oos ? st.color : "var(--ink-dim)" }}><span className="min-[1100px]:hidden">{st.short}</span><span className="hidden min-[1100px]:inline">{st.step}</span></span>
+                  <span className="flex flex-col min-[1100px]:flex-row min-[1100px]:items-baseline min-[1100px]:gap-2">
+                    <span className="num font-mono text-[20px] leading-none min-[1100px]:text-[28px] [@media(max-height:720px)]:!text-[22px]" style={{ color: st.color }}><RollCount value={count(st.mode)} run={on} /></span>
+                    <span className="hidden text-[13px] text-ink-dim min-[1100px]:inline">{st.noun}</span>
                   </span>
                   <span id={`desc-${st.mode}`} className="sr-only">{st.noun}. {st.text}</span>
                 </button>
               );
             })}
           </div>
-          <p className="nav-glass hidden rounded-[var(--radius-sm)] px-4 py-3 text-[13px] leading-snug text-ink-dim sm:block">{active.text}</p>
+          <p className="nav-glass hidden rounded-[var(--radius-sm)] px-4 py-3 text-[13px] leading-snug text-ink-dim min-[1100px]:block [@media(max-height:820px)]:!hidden">{active.text}</p>
           <label className="nav-glass flex min-h-11 items-center gap-2.5 self-start rounded-full px-4 text-[13px] text-ink-dim">
             <input type="checkbox" className="h-[18px] w-[18px] accent-signal" checked={enso} onChange={(e) => setEnso(e.target.checked)} />
             Remove El Niño first <span className="hidden sm:inline">(changes step 3)</span>
@@ -423,9 +423,9 @@ export default function GlobePage() {
           for (const c of g.wf as (number | null)[]) if (c != null) n[c]++;
           const found = n[2] + n[3] + n[4] + n[5], held = n[2] + n[3];
           return (
-            <div role="status" className="nav-glass absolute inset-x-4 bottom-[132px] z-10 flex flex-col gap-1 rounded-[var(--radius-sm)] px-5 py-3 sm:bottom-6 sm:left-[408px] sm:right-6 lg:right-[460px]">
+            <div role="status" className="nav-glass absolute inset-x-4 bottom-[132px] z-10 flex flex-col gap-1 rounded-[var(--radius-sm)] px-5 py-3 min-[1100px]:bottom-6 min-[1100px]:left-[408px] min-[1100px]:right-[460px]">
               <span className="hud">Did the past predict the future? · {NICE[v].short}</span>
-              <span className="font-display text-[18px] leading-[24px] text-ink sm:text-[22px] sm:leading-[28px]">
+              <span className="font-display text-[18px] leading-[24px] text-ink min-[1100px]:text-[22px] min-[1100px]:leading-[28px]">
                 <span className="num">{found ? Math.round((100 * held) / found) : 0}%</span> of trends found in 1980–2002 continued in 2003–2025.
               </span>
               <span className="text-[13px] text-ink-dim">Like backtesting a trading strategy: find the trend on old data, then check it on data it never saw. ({n0(held)} of {n0(found)} squares.)</span>
@@ -433,7 +433,7 @@ export default function GlobePage() {
           );
         })()}
         {!flat && v === "T2M" && !tour && !oos && (
-          <div className="nav-glass absolute inset-x-4 bottom-[132px] z-10 flex items-center gap-3 rounded-full px-3 py-1.5 sm:bottom-6 sm:left-[408px] sm:right-auto sm:w-[min(440px,calc(100vw-440px))] lg:right-[460px] lg:w-auto">
+          <div className="nav-glass absolute inset-x-4 bottom-[132px] z-10 flex items-center gap-3 rounded-full px-3 py-1.5 min-[1100px]:bottom-6 min-[1100px]:left-[408px] min-[1100px]:right-[460px]">
             {yearIdx == null || !anom ? (
               <button type="button" onClick={startYears} className="hud flex min-h-11 w-full items-center justify-center gap-2 !text-ink">▶ Play the years 1980–2025</button>
             ) : (
@@ -451,7 +451,7 @@ export default function GlobePage() {
 
         {/* Bottom right: the colour key (below the globe on phones) */}
         {!flat && (
-          <div className="nav-glass absolute bottom-6 right-6 z-10 hidden w-[420px] rounded-[var(--radius-sm)] p-4 lg:block">
+          <div className="nav-glass absolute bottom-6 right-6 z-10 hidden w-[420px] rounded-[var(--radius-sm)] p-4 min-[1100px]:block">
             {oos ? <OosKey /> : yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}
           </div>
         )}
@@ -497,7 +497,7 @@ export default function GlobePage() {
             <CityCard city={city} k={cellAt(cityGrids.T2M, meta.grid.lat, meta.grid.lon, { lat: city.lat, lng: city.lon }).k} grids={cityGrids} onClose={() => { setCity(null); setPlace(null); }} />
           </div>
         )}
-        <div className={flat ? "" : "lg:hidden"}>{oos && !flat ? <OosKey /> : yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}</div>
+        <div className={flat ? "" : "min-[1100px]:hidden"}>{oos && !flat ? <OosKey /> : yearOn ? <YearKey year={anom!.years[yearIdx!]} /> : <GlobeScale grid={g} units={NICE[v].units} mode={mode} enso={enso} />}</div>
         <p className="hud text-ink-dim">Drag to spin · pinch or scroll to zoom · tap or click a square · each column is one square, its height the size of the trend</p>
         <CellInfo meta={meta} grid={g} v={v} pick={pick} mode={mode} enso={enso} onClose={() => setPick(null)} />
         <AnimatePresence mode="wait">

@@ -15,7 +15,6 @@ export const LUCK = [197, 138, 214];     // --false-alarm: a false alarm on shuf
 const over = (c: number[], a: number) => c.map((x, i) => Math.round(FLAT[i] + (x - FLAT[i]) * a));
 const RISE = [over([245, 245, 242], 0.35), over([245, 245, 242], 0.675), [245, 245, 242]];
 const FALL = [over([107, 114, 128], 0.35), over([107, 114, 128], 0.675), [107, 114, 128]];
-const WATER = new Set(["TQV", "PRECTOTCORR", "EVAP", "GWETROOT", "SNOMAS", "RUNOFF"]);
 const ramps = () => ({ up: RISE, down: FALL });
 const T0 = 0; // the weakest trend gets the 0.35 shade
 const lerp = (a: number[], b: number[], t: number) => a.map((x, i) => Math.round(x + (b[i] - x) * t));
@@ -23,8 +22,8 @@ const ramp = (stops: number[][], t: number) => (t < 0.5 ? lerp(stops[0], stops[1
 export const rgb = (c: number[]) => `rgb(${c.join(",")})`;
 /** The colour for a rising (+1) or falling (−1) trend of this variable, at full strength. */
 export const trendColor = (v: string, sign: number) => (sign === 0 ? "var(--ink-dim)" : rgb(ramp(sign > 0 ? ramps().up : ramps().down, 0.6)));
-/** CSS colour for a trend line/bar: heat-like vars rising = --warming (orange), falling = --cooling (blue); water vars wetter = --cooling, drier = --warming. */
-export const trendToneCss = (v: string, slope: number) => (WATER.has(v) ? (slope >= 0 ? "var(--cooling)" : "var(--warming)") : slope >= 0 ? "var(--warming)" : "var(--cooling)");
+/** CSS colour for a trend line/bar, the same for every variable: rising = --warming (white), falling = --cooling (grey). */
+export const trendToneCss = (_v: string, slope: number) => (slope >= 0 ? "var(--warming)" : "var(--cooling)");
 /** The colour key: strong falling (grey) → weak → no trend → weak → strong rising (white). */
 export const MONO_KEY = `linear-gradient(90deg, ${[...[...FALL].reverse(), FLAT, ...RISE].map(rgb).join(",")})`;
 
