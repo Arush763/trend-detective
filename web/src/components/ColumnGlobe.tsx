@@ -101,10 +101,14 @@ function targets(grid: Grid, cells: number[], mode: Mode, enso: boolean) {
 const ringCol = () => (t: number) => `rgba(236,235,232,${1 - t})`;
 const easeIO = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 
-export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, onPick, label, loading = "Loading…" }: {
+export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, onPick, label, loading = "Loading…", loadingNote, onBuilt }: {
   grid: Grid | null; lat: number[]; lon: number[]; mode: Mode; enso: boolean; year?: YearView | null; target: Target | null;
   /** Shown until the first columns are on screen (the 3D engine and textures take a few seconds on a slow connection). */
   loading?: string;
+  /** A second, smaller line under the loading status (e.g. "Starting the investigation…"). */
+  loadingNote?: string;
+  /** Called once, when the first frame with columns has been drawn. */
+  onBuilt?: () => void;
   onPick: (p: { lat: number; lng: number }) => void; label: string;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
@@ -116,6 +120,8 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
   sizeRef.current = size;
   const [ready, setReady] = useState(false);
   const [built, setBuilt] = useState(false);
+  const onBuiltRef = useRef(onBuilt);
+  useEffect(() => { onBuiltRef.current = onBuilt; });
   const cols = useRef<Cols | null>(null);
   const uT = useRef({ value: 1 }), uS = useRef({ value: STAGGER });
   const prev = useRef<{ mode: Mode; enso: boolean; v: string; year: number | null } | null>(null);
@@ -169,7 +175,7 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
       c.mesh.frustumCulled = false;
       scene.add(c.mesh);
       cols.current = c;
-      requestAnimationFrame(() => setBuilt(true)); // the first frame with columns has been drawn
+      requestAnimationFrame(() => { setBuilt(true); onBuiltRef.current?.(); }); // the first frame with columns has been drawn
     } else {
       for (let i = 0; i < c.cells.length; i++) {
         const e = progress(i, c);
@@ -321,7 +327,12 @@ export function ColumnGlobe({ grid, lat, lon, mode, enso, year = null, target, o
           onGlobeClick={onPick} onGlobeReady={onReady} animateIn={false} />
       )}
       {label2}
-      {!built && <div role="status" className="pointer-events-none absolute inset-0 flex items-center justify-center"><p className="hud nav-glass flex items-center gap-2 rounded-full px-4 py-2 !text-[var(--ink)]"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--ink)] motion-safe:animate-pulse" />{loading}</p></div>}
+      {!built && (
+        <div role="status" className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2">
+          <p className="hud nav-glass flex items-center gap-2 rounded-full px-4 py-2 !text-[var(--ink)]"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--ink)] motion-safe:animate-pulse" />{loading}</p>
+          {loadingNote && <p className="hud !text-[11px]">{loadingNote}</p>}
+        </div>
+      )}
     </div>
   );
 }
