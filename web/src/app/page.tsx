@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { DEMOS, get, type Grid, type Meta, type Region } from "@/lib/data";
 import { CasesScene, ChecksScene, EndBeat, HeroScene, MissionScene, NoiseScene, SmoothScroll, StoryGlobe } from "@/components/Scenes";
 import { Leaderboard } from "@/components/Leaderboard";
@@ -26,7 +27,13 @@ export default function Landing() {
       <HeroScene cells={meta?.grid_summary.T2M.cells} />
       {/* Solid ground: numbers never sit on top of the story globe. */}
       <section className="bleed relative bg-[var(--ground)] px-4 py-20 sm:px-8">
-        <div className="mx-auto max-w-[900px]">{meta && <Leaderboard meta={meta} />}</div>
+        <div className="mx-auto flex max-w-[900px] flex-col gap-6">
+          {meta && <Leaderboard meta={meta} />}
+          <Link href="/lab" className="glass flex items-center justify-between gap-4 px-5 py-4 text-ink no-underline">
+            <span><span className="hud block">The lab</span><span className="text-[17px]">Think you can fool the detector? Hide a trend in noise, or fake one.</span></span>
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
       </section>
       <MissionScene meta={meta} />
       <NoiseScene meta={meta} grid={grid} />
