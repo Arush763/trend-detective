@@ -68,6 +68,7 @@ function HeroStage({ p, cells }: { p: MotionValue<number>; cells?: number }) {
             <div className="flex flex-wrap gap-3">
               <Button href="#cases">See the demo cases</Button>
               <Button href="/explore" variant="glass">Pick your own place</Button>
+              <Button href="/globe?tour=1" variant="glass">Watch the investigation</Button>
             </div>
           </motion.div>
           <motion.div style={{ opacity: h2, y: h2y }} className="pointer-events-none absolute inset-x-0 top-[12vh] z-10 mx-auto flex max-w-[900px] flex-col items-center gap-4 px-6 text-center">
