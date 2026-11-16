@@ -197,7 +197,10 @@ export default function GlobePage() {
   }, []);
   const requestTour = () => {
     if (!meta || tour || pending) return;
-    snap.current = { v, mode, enso, pick, place, yearIdx, url: window.location.pathname + window.location.search };
+    // The address to put back afterwards: as it was, minus ?tour=1, so a reload doesn't replay the tour.
+    const q = new URLSearchParams(window.location.search);
+    q.delete("tour");
+    snap.current = { v, mode, enso, pick, place, yearIdx, url: window.location.pathname + (q.size ? `?${q}` : "") };
     setPending(true);
   };
   const runTour = async () => {
