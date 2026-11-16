@@ -92,12 +92,17 @@ export default function GlobePage() {
   const [yearIdx, setYearIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
 
+  // Shareable links: ?v=&region=&enso=1&year= . The address is read once, when the page opens.
+  const initial = useRef<URLSearchParams | null>(null);
+  const [copied, setCopied] = useState(false);
   useEffect(() => {
+    initial.current = new URLSearchParams(window.location.search);
     get("meta.json").then((m) => {
       setMeta(m);
       // ?v= picks the variable (e.g. from a case's verdict). Read after commit, not during render: see explore/page.tsx.
-      const q = new URLSearchParams(window.location.search).get("v");
+      const q = initial.current!.get("v");
       if (q && m.grid_summary[q]) setV(q);
+      if (initial.current!.get("enso") === "1") setEnso(true);
     }).catch((e) => setErr(String(e)));
   }, []);
   useEffect(() => {
@@ -119,17 +124,17 @@ export default function GlobePage() {
     }), 450);
     return () => window.clearInterval(id);
   }, [playing, anom]);
-  const startYears = async () => {
-    let A = anom;
-    if (!A) {
-      try {
-        const [info, buf] = await Promise.all([get("grid/T2M_anom.json"), fetch("/data/grid/T2M_anom.bin").then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })]);
-        A = { a: new Int8Array(buf), years: info.years, step: info.step, nodata: info.nodata, nCells: info.shape[0] * info.shape[1] };
-        setAnom(A);
-      } catch (e) { setErr(`the yearly data (${e})`); return; }
-    }
-    setYearIdx(0); setPlaying(true);
+  const loadAnom = async () => {
+    if (anom) return anom;
+    try {
+      const [info, buf] = await Promise.all([get("grid/T2M_anom.json"), fetch("/data/grid/T2M_anom.bin").then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.arrayBuffer(); })]);
+      const A: Anom = { a: new Int8Array(buf), years: info.years, step: info.step, nodata: info.nodata, nCells: info.shape[0] * info.shape[1] };
+      setAnom(A);
+      return A;
+    } catch (e) { setErr(`the yearly data (${e})`); return null; }
   };
+  const startYears = async () => { if (await loadAnom()) { setYearIdx(0); setPlaying(true); } };
+  const showYear = async (y: number) => { const A = await loadAnom(); const i = A ? A.years.indexOf(y) : -1; if (i >= 0) { setPlaying(false); setYearIdx(i); } };
   const stopYears = () => { setPlaying(false); setYearIdx(null); };
   // A clicked square's own numbers, or a region / demo case picked from the menu.
   const target: Target | null = useMemo(() => {
@@ -140,7 +145,7 @@ export default function GlobePage() {
     return place;
   }, [pick, place, g, v, mode, enso]);
 
-  const choose = (k: string) => { if (k !== "T2M") stopYears(); setV(k); window.history.replaceState(null, "", `/globe?v=${k}`); };
+  const choose = (k: string) => { if (k !== "T2M") stopYears(); setV(k); };
   const pickCell = (p: { lat: number; lng: number }) => { if (g && meta) { setPlace(null); setPick(cellAt(g, meta.grid.lat, meta.grid.lon, p)); } };
 
   // A region or demo case from the menu: fly there and label it with that place's own trend and q.
@@ -205,13 +210,46 @@ export default function GlobePage() {
   // /globe?tour=1 (the home page button) starts the tour once the data is in.
   const haveGrid = !!g;
   useEffect(() => {
-    if (autoTried.current || !meta || !haveGrid || !new URLSearchParams(window.location.search).has("tour")) return;
+    if (autoTried.current || !meta || !haveGrid || !initial.current?.has("tour")) return;
     autoTried.current = true;
     const id = window.setTimeout(() => { startTour(); }, 900);
     return () => window.clearTimeout(id);
     // startTour is recreated every render; this runs once, when the data first arrives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, haveGrid]);
+
+  // Keep the address in step with what's on screen (replace, not push: Back isn't flooded), and restore it on load.
+  // Nothing is written until the restore has run, so a shared link's region and year aren't dropped on the way in.
+  const placeVal = place?.key.startsWith("place-") ? place.key.slice(6) : "";
+  const yearVal = yearIdx != null && anom ? anom.years[yearIdx] : null;
+  const [restoring, setRestoring] = useState(true);
+  useEffect(() => {
+    if (!meta || restoring) return;
+    const q = new URLSearchParams({ v });
+    if (placeVal) q.set("region", placeVal);
+    if (enso) q.set("enso", "1");
+    if (yearVal != null && v === "T2M") q.set("year", String(yearVal));
+    const url = `/globe?${q}`;
+    // history.replaceState (Next keeps its router in sync with it): replaces like router.replace, but synchronously, so two
+    // quick updates (restoring a region, then a year) can't race and leave the older address behind.
+    if (url !== window.location.pathname + window.location.search) window.history.replaceState(window.history.state, "", url);
+  }, [meta, restoring, v, placeVal, enso, yearVal]);
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current || !meta || !haveGrid) return;
+    restored.current = true;
+    const q = initial.current, region = q?.get("region"), year = Number(q?.get("year"));
+    const id = window.setTimeout(async () => {
+      if (q && !q.has("tour")) await Promise.all([region ? jump(region) : null, year && (q.get("v") ?? "T2M") === "T2M" ? showYear(year) : null]);
+      setRestoring(false);
+    }, 300);
+    return () => window.clearTimeout(id);
+    // jump and showYear are recreated every render; this runs once, when the data first arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, haveGrid]);
+  const copyLink = () => {
+    navigator.clipboard?.writeText(window.location.href).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600); }).catch(() => {});
+  };
 
   if (err) return <p className="text-false-alarm">Could not load the data ({err}). Try reloading the page.</p>;
   // Same full-screen frame from the first paint, so a slow connection shows a loading globe page, not an empty one.
@@ -244,6 +282,7 @@ export default function GlobePage() {
             </div>
             <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
             <button type="button" onClick={() => { startTour(); }} className="pill nav-glass shrink-0 !text-[var(--ink)]">▶ Watch the investigation</button>
+            <button type="button" onClick={copyLink} className="pill nav-glass shrink-0" aria-live="polite">{copied ? "Copied" : "Copy link"}</button>
             <label className="flex min-w-0 max-w-full items-center gap-2"><span className="hud hidden sm:inline">Fly to</span>
               <select className="nav-glass hud h-11 w-56 max-w-full cursor-pointer rounded-full px-4 text-ink" defaultValue=""
                 onChange={(e) => { jump(e.target.value); e.target.value = ""; }} aria-label="Fly to a place">
