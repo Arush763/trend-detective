@@ -4,8 +4,8 @@ export const alt = "Trend Detective: Is Earth really changing, or is it just luc
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// Warming-stripe colours, blue → red, for the band along the bottom.
-const STRIPES = ["#162860", "#2d5abe", "#5b93ff", "#96aad2", "#c8af96", "#ffaa6e", "#ff8a3d", "#be5014"];
+// Warming-stripe colours, grey (cooler) → white (warmer), for the band along the bottom.
+const STRIPES = ["#40444c", "#565c68", "#6b7280", "#808286", "#a0a09e", "#c4c4c1", "#e1e1de", "#f5f5f2"];
 
 export default function Image() {
   return new ImageResponse(
